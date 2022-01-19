@@ -1,0 +1,34 @@
+# =========================
+# Operating System Files
+# =========================
+
+# Windows
+$RECYCLE.BIN/
+*.cab
+*.lnk
+*.msi
+*.msm
+*.msp
+Desktop.ini
+Thumbs.db
+ehthumbs.db
+
+# OSX
+*.swp
+.AppleDB
+.AppleDesktop
+.AppleDouble
+.DS_Store
+.DocumentRevisions-V100
+.LSOverride
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+._*
+.apdisk
+.fseventsd
+Network Trash Folder
+Temporary Items
+
+# EOF
