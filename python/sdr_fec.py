@@ -24,10 +24,16 @@ NONE = np.array([], dtype='uint8')
 
 # load LIBFEC ([1]) ------------------------------------------------------------
 dir = os.path.dirname(__file__)
-try:
+import platform
+environment = platform.platform()
+if 'Windows' in environment:
     libfec = cdll.LoadLibrary(dir + '/../lib/win32/libfec.so')
-except:
+elif 'Linux' in environment:
     libfec = cdll.LoadLibrary(dir + '/../lib/linux/libfec.so')
+elif 'macOS' in environment and 'x86_64' in environment:
+    libfec = cdll.LoadLibrary(dir + '/../lib/darwin_x86/libfec.dylib')
+elif 'macOS' in environment and 'arm' in environment:
+    libfec = cdll.LoadLibrary(dir + '/../lib/darwin_arm/libfec.dylib')
 
 #-------------------------------------------------------------------------------
 #  Encode convolution code (K=7, R=1/2, Poly=G1:0x4F,G2:0x6D).

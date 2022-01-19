@@ -19,10 +19,16 @@ import numpy as np
 
 # load RTKLIB ([1]) ------------------------------------------------------------
 dir = os.path.dirname(__file__)
-try:
+import platform
+environment = platform.platform()
+if 'Windows' in environment:
     librtk = cdll.LoadLibrary(dir + '/../lib/win32/librtk.so')
-except:
+elif 'Linux' in environment:
     librtk = cdll.LoadLibrary(dir + '/../lib/linux/librtk.so')
+elif 'macOS' in environment and 'x86_64' in environment:
+    librtk = cdll.LoadLibrary(dir + '/../lib/darwin_x86/librtk.dylib')
+elif 'macOS' in environment and 'arm' in environment:
+    librtk = cdll.LoadLibrary(dir + '/../lib/darwin_arm/librtk.dylib')
 
 # extract unsigned bits --------------------------------------------------------
 def getbitu(data, pos, len):
