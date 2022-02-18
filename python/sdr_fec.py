@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 #
 #  PocketSDR Python Library - Forward Error Correction (FEC) Functions
 #
@@ -13,7 +12,7 @@
 #  2021-12-24  1.0  new
 #  2022-01-04  1.1  fix bug to call set_viterbi27_polynomial() by python 3.8
 #
-import os
+import os, platform
 from ctypes import *
 import numpy as np
 import sdr_func
@@ -23,17 +22,19 @@ POLY_CONV = (0x4F, 0x6D)  # convolution code polynomials (G1, G2)
 NONE = np.array([], dtype='uint8')
 
 # load LIBFEC ([1]) ------------------------------------------------------------
+env = platform.platform()
 dir = os.path.dirname(__file__)
-import platform
-environment = platform.platform()
-if 'Windows' in environment:
+if 'Windows' in env:
     libfec = cdll.LoadLibrary(dir + '/../lib/win32/libfec.so')
-elif 'Linux' in environment:
+elif 'Linux' in env:
     libfec = cdll.LoadLibrary(dir + '/../lib/linux/libfec.so')
-elif 'macOS' in environment and 'x86_64' in environment:
+elif 'macOS' in env and 'x86_64' in env:
     libfec = cdll.LoadLibrary(dir + '/../lib/darwin_x86/libfec.dylib')
-elif 'macOS' in environment and 'arm' in environment:
+elif 'macOS' in env and 'arm'    in env:
     libfec = cdll.LoadLibrary(dir + '/../lib/darwin_arm/libfec.dylib')
+except:
+    print('load libfec.so error (%s)' % (env))
+    exit()
 
 #-------------------------------------------------------------------------------
 #  Encode convolution code (K=7, R=1/2, Poly=G1:0x4F,G2:0x6D).

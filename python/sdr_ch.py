@@ -7,6 +7,7 @@
 #  History:
 #  2021-12-24  1.0  new
 #  2022-01-13  1.1  support tracking of L6D, L6E
+#  2022-02-15  1.2  update ch state by external trigger
 #
 from math import *
 import numpy as np
@@ -14,18 +15,20 @@ from sdr_func import *
 import sdr_code, sdr_nav
 
 # constants --------------------------------------------------------------------
-T_SRCH     = 300.0           # average of signal search interval (s)
 T_ACQ      = 0.010           # non-coherent integration time for acquisition (s)
-T_DLL      = 0.001           # non-coherent integration time for DLL (s)
+T_DLL      = 0.010           # non-coherent integration time for DLL (s)
 T_CN0      = 1.0             # averaging time for C/N0 (s)
 T_FPULLIN  = 1.0             # frequency pullin time (s)
 T_NPULLIN  = 1.5             # navigation data pullin time (s)
+N_HIST     = 10000           # number of P correlator history
 B_DLL      = 0.5             # band-width of DLL filter (Hz)
-B_PLL      = 5.0             # band-width of PLL filter (Hz)
+B_PLL      = 10.0            # band-width of PLL filter (Hz)
 B_FLL      = (10.0, 2.0)     # band-width of FLL filter (Hz) (wide, narrow)
 SP_CORR    = 0.5             # default correlator spacing (chip)
 MAX_DOP    = 5000.0          # default max Doppler for acquisition (Hz)
 THRES_CN0  = (35.0, 32.0)    # C/N0 threshold (dB-Hz) (lock, lost)
+THRES_SYNC  = 0.03           # threshold for sec-code sync
+THRES_LOST  = 0.003          # threshold for sec-code lost
 
 # general object classes -------------------------------------------------------
 class Obj: pass
@@ -40,16 +43,16 @@ class Obj: pass
 #      fi       (I) IF frequency (Hz)
 #      max_dop  (I) Max Doppler frequency for acquisition (Hz) (optional)
 #      sp_corr  (I) Correlator spacing (chips) (optional)
-#      add_corr (I) Flag for additional correlator for plot (optional)
+#      add_corr (I) Number of additional correlator for plot (optional)
 #      nav_opt  (I) Navigation data options (optional)
 #
 #  returns:
 #      ch       Receiver channel
 #
-def ch_new(sig, prn, fs, fi, max_dop=MAX_DOP, sp_corr=SP_CORR, add_corr=False,
+def ch_new(sig, prn, fs, fi, max_dop=MAX_DOP, sp_corr=SP_CORR, add_corr=0,
     nav_opt=''):
     ch = Obj()
-    ch.state = 'SRCH'               # channel state
+    ch.state = 'IDLE'               # channel state
     ch.time = 0.0                   # receiver time
     ch.sig = sig.upper()            # signal type
     ch.prn = prn                    # PRN number
@@ -68,7 +71,7 @@ def ch_new(sig, prn, fs, fi, max_dop=MAX_DOP, sp_corr=SP_CORR, add_corr=False,
     ch.lost = 0                     # signal lost count
     ch.costas = not (ch.sig == 'L6D' or ch.sig == 'L6E') # Costas PLL flag
     ch.acq = acq_new(ch.code, ch.T, fs, ch.N, max_dop)
-    ch.trk = trk_new(ch.sig, ch.code, ch.T, fs, sp_corr, add_corr)
+    ch.trk = trk_new(ch.sig, ch.prn, ch.code, ch.T, fs, sp_corr, add_corr)
     ch.nav = sdr_nav.nav_new(nav_opt)
     return ch
 
@@ -90,37 +93,39 @@ def ch_new(sig, prn, fs, fi, max_dop=MAX_DOP, sp_corr=SP_CORR, add_corr=False,
 #  args:
 #      ch       (I) Receiver channel
 #      time     (I) Sampling time of the end of digitized IF data (s)
-#      data     (I) 2-cycle samples of digitized IF data as complex64 ndarray
+#      buff     (I) buffer of digitized IF data as complex64 ndarray
+#      ix       (I) index of IF data
 #
 #  returns:
 #      None
 #
-def ch_update(ch, time, data):
+def ch_update(ch, time, buff, ix):
     if ch.state == 'SRCH':
-        search_sig(ch, time, data)
+        search_sig(ch, time, buff, ix)
     elif ch.state == 'LOCK':
-        track_sig(ch, time, data)
-    elif np.random.rand() * T_SRCH / ch.T < 1.0: # IDLE
-        ch.state = 'SRCH'
+        track_sig(ch, time, buff, ix)
+    else: # IDLE
+        ch.time = time
 
 # new signal acquisition -------------------------------------------------------
 def acq_new(code, T, fs, N, max_dop):
     acq = Obj()
     acq.code_fft = sdr_code.gen_code_fft(code, T, 0.0, fs, N, N) # (code + ZP) DFT
-    acq.fds = dop_bins(T, max_dop)  # Doppler search bins
-    acq.P_sum = np.zeros((len(acq.fds), N)) # non-coherent sum of correlations
+    acq.fds = dop_bins(T, 0.0, max_dop)  # Doppler search bins
+    acq.P_sum = np.zeros((len(acq.fds), N)) # non-coherent sum of corr. powers
     acq.n_sum = 0                   # number of non-coherent sum
     return acq
 
 # new signal tracking ----------------------------------------------------------
-def trk_new(sig, code, T, fs, sp_corr, add_corr):
+def trk_new(sig, prn, code, T, fs, sp_corr, add_corr):
     trk = Obj()
     pos = int(sp_corr * T / len(code) * fs) + 1
     trk.pos = [0, -pos, pos, -80]   # correlator positions {P,E,L,N} (samples)
-    if add_corr:
-        trk.pos += range(-40, 41)   # additional correlator positions
+    if add_corr > 0:                # additional correlator positions
+        trk.pos += range(-add_corr, add_corr + 1)
     trk.C = np.zeros(len(trk.pos), dtype='complex64') # correlator outputs
-    trk.P = np.zeros(2000, dtype='complex64') # history of P correlator outputs
+    trk.P = np.zeros(N_HIST, dtype='complex64') # history of P corr outputs
+    trk.sec_sync = trk.sec_pol = 0  # secondary code sync and polarity
     trk.err_phas = 0.0              # carrier phase error (cyc)
     trk.sumP = trk.sumE = trk.sumL = trk.sumN = 0.0 # sum of correlator outputs
     if sig == 'L6D' or sig == 'L6E':
@@ -132,16 +137,17 @@ def trk_new(sig, code, T, fs, sp_corr, add_corr):
 # initialize signal tracking ---------------------------------------------------
 def trk_init(trk):
     trk.err_phas = 0.0
+    trk.sec_sync = trk.sec_pol = 0
     trk.sumP = trk.sumE = trk.sumL = trk.sumN = 0.0
     trk.C[:] = 0.0
     trk.P[:] = 0.0
 
 # search signal ----------------------------------------------------------------
-def search_sig(ch, time, data):
+def search_sig(ch, time, buff, ix):
     ch.time = time
     
     # parallel code search and non-coherent integration
-    ch.acq.P_sum += search_code(ch.acq.code_fft, ch.T, data, ch.fs, ch.fi,
+    ch.acq.P_sum += search_code(ch.acq.code_fft, ch.T, buff, ix, ch.fs, ch.fi,
         ch.acq.fds)
     ch.acq.n_sum += 1
     
@@ -151,7 +157,7 @@ def search_sig(ch, time, data):
         P_max, ix, cn0 = corr_max(ch.acq.P_sum, ch.T)
         
         if cn0 >= THRES_CN0[0]:
-            fd = ch.acq.fds[ix[0]]
+            fd = fine_dop(ch.acq.P_sum.T[ix[1]], ch.acq.fds, ix[0])
             coff = ix[1] / ch.fs
             start_track(ch, fd, coff, cn0)
             log(3, '$LOG,%.3f,%s,%d,SIGNAL FOUND (%.1f,%.1f,%.7f)' % (ch.time,
@@ -175,7 +181,7 @@ def start_track(ch, fd, coff, cn0):
     sdr_nav.nav_init(ch.nav)
 
 # track signal -----------------------------------------------------------------
-def track_sig(ch, time, data):
+def track_sig(ch, time, buff, ix):
     tau = time - ch.time   # time interval (s)
     fc = ch.fi + ch.fd     # IF carrier frequency with Doppler (Hz)
     ch.adr += ch.fd * tau  # accumulated Doppler (cyc)
@@ -186,22 +192,25 @@ def track_sig(ch, time, data):
     i = int(ch.coff * ch.fs + 0.5) % ch.N
     phi = ch.fi * tau + ch.adr + fc * i / ch.fs
     
-    # mix carrier
-    data_carr = mix_carr(data[i:i+ch.N], ch.fs, fc, phi)
-    
     if ch.sig == 'L6D' or ch.sig == 'L6E':
         # FFT correlator
-        C = corr_fft(data_carr, ch.trk.code) / ch.N
+        C = corr_fft(buff, ix + i, ch.N, ch.fs, fc, phi, ch.trk.code)
         
         # decode L6 CSK
         ch.trk.C = CSK(ch, C)
     else:
         # standard correlator
-        ch.trk.C = corr_std(data_carr, ch.trk.code, ch.trk.pos)
+        ch.trk.C = corr_std(buff, ix + i, ch.N, ch.fs, fc, phi, ch.trk.code,
+            ch.trk.pos)
     
     # add P correlator outputs to histroy
     add_buff(ch.trk.P, ch.trk.C[0])
     ch.lock += 1
+    
+    # sync and remove secondary code
+    N = len(ch.sec_code)
+    if N >= 2 and ch.lock * ch.T >= T_NPULLIN:
+        sync_sec_code(ch, N)
     
     # FLL/PLL, DLL and update C/N0
     if ch.lock * ch.T <= T_FPULLIN:
@@ -220,6 +229,21 @@ def track_sig(ch, time, data):
         ch.lost += 1
         log(3, '$LOG,%.3f,%s,%d,SIGNAL LOST (%s, %.1f)' % (ch.time, ch.sig,
             ch.prn, ch.sig, ch.cn0))
+
+# sync and remove secondary code -----------------------------------------------
+def sync_sec_code(ch, N):
+    if ch.trk.sec_sync == 0:
+        P = np.dot(ch.trk.P[-N:].real, ch.sec_code) / N
+        if np.abs(P) >= THRES_SYNC:
+            ch.trk.sec_sync = ch.lock
+            ch.trk.sec_pol = 1 if P > 0.0 else -1
+    elif (ch.lock - ch.trk.sec_sync) % N == 0:
+        if np.abs(np.mean(ch.trk.P[-N:].real)) < THRES_LOST:
+            ch.trk.sec_sync = ch.trk.sec_pol = 0
+    if ch.trk.sec_sync > 0:
+        C = ch.sec_code[(ch.lock - ch.trk.sec_sync - 1) % N] * ch.trk.sec_pol
+        ch.trk.C *= C
+        ch.trk.P[-1] *= C
 
 # FLL --------------------------------------------------------------------------
 def FLL(ch):
@@ -248,11 +272,11 @@ def PLL(ch):
 # DLL --------------------------------------------------------------------------
 def DLL(ch):
     N = np.max([1, int(T_DLL / ch.T)])
-    ch.trk.sumE += ch.trk.C[1]
-    ch.trk.sumL += ch.trk.C[2]
+    ch.trk.sumE += np.abs(ch.trk.C[1]) # non-coherent sum
+    ch.trk.sumL += np.abs(ch.trk.C[2])
     if ch.lock % N == 0:
-        E = np.abs(ch.trk.sumE)
-        L = np.abs(ch.trk.sumL)
+        E = ch.trk.sumE
+        L = ch.trk.sumL
         err_code = (E - L) / (E + L) / 2.0 * ch.T / len(ch.code) # (s)
         ch.coff -= B_DLL / 0.25 * err_code * ch.T * N
         ch.trk.sumE = ch.trk.sumL = 0.0
@@ -274,11 +298,13 @@ def CSK(ch, C):
     C = np.hstack([C[-n:], C[:n]])
     
     # interpolate correlation powers
-    P = np.interp(np.arange(-256, 257) * R, np.arange(-n, n), np.abs(C))
+    P = np.interp(np.arange(-255, 256) * R, np.arange(-n, n), np.abs(C))
     
-    # decode CSK and add symbol to buffer
-    ix = np.argmax(P) - 256
+    # detect correlation peak to decode CSK
+    ix = np.argmax(P) - 255
+    
+    # add CSK symbol to buffer
     add_buff(ch.nav.syms, 255 - ix % 256)
     
     # generate correlator outputs
-    return np.interp(ix * R + np.array(ch.trk.pos) / 2, np.arange(-n, n), C)
+    return np.interp(ix * R + np.array(ch.trk.pos), np.arange(-n, n), C)
