@@ -8,18 +8,35 @@
 #! specify directory of LIBFEC source tree
 SRC = ../libfec
 
-#! uncomment for Windows
-INSTALL = ../win32
+CONFOPT =
+ifeq ($(OS),Windows_NT)
+    #! for Windows
+    INSTALL = ../win32
+	EXTSH = so
+else
+    ifeq ($(shell uname -s),Linux)
+        #! for Linux
+        INSTALL = ../linux
+		EXTSH = so
+    else ifeq ($(shell uname -s),Darwin)
+        ifeq ($(shell uname -m),x86_64)
+        	#! for macOS Intel
+            INSTALL = ../darwin_x86
+			CONFOPT = --target=x86-apple-darwin --build=x86-apple-darwin
+        else ifeq ($(shell uname -m),arm64)
+        	#! for macOS Arm
+            INSTALL = ../darwin_arm
+		endif
+		EXTSH = dylib
+    endif
+endif
 
-#! uncomment for Linuex
-#INSTALL = ../linux
-
-TARGET = libfec.so
+TARGET = libfec.$(EXTSH)
 
 $(TARGET) :
 	DIR=`pwd`; \
 	cd $(SRC); \
-	./configure; \
+	./configure $(CONFOPT); \
 	sed 's/-lc//' < makefile > makefile.p; \
 	mv makefile.p makefile; \
 	make; \

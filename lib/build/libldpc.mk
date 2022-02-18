@@ -10,11 +10,31 @@ CC  = gcc
 #! specify directory of LDPC-codes source tree
 SRC = ../LDPC-codes
 
-#! uncomment for Windows
-INSTALL = ../win32
+ifeq ($(OS),Windows_NT)
+    #! for Windows
+    INSTALL = ../win32
+	EXTSH = so
+	OPTSH = -shared
+else
+    ifeq ($(shell uname -s),Linux)
+        #! for Linux
+        INSTALL = ../linux
+		EXTSH = so
+		OPTSH = -shared
+    else ifeq ($(shell uname -s),Darwin)
+        ifeq ($(shell uname -m),x86_64)
+        	#! for macOS Intel
+            INSTALL = ../darwin_x86
+        else ifeq ($(shell uname -m),arm64)
+        	#! for macOS Arm
+            INSTALL = ../darwin_arm
+		endif
+		EXTSH = dylib
+		OPTSH = -dynamiclib
+    endif
+endif
 
-#! uncomment for Linux
-#INSTALL = ../linux
+TARGET = libldpc.$(EXTSH)
 
 INCLUDE = -I$(SRC)
 
@@ -24,10 +44,9 @@ OBJ = rcode.o channel.o dec.o enc.o alloc.o intio.o blockio.o \
       check.o open.o mod2dense.o mod2sparse.o mod2convert.o \
       distrib.o rand.o
 
-TARGET = libldpc.so
 
 $(TARGET) : $(OBJ)
-	$(CC) -shared -o $@ $(OBJ)
+	$(CC) $(OPTSH) -o $@ $(OBJ)
 
 rcode.o   : $(SRC)/rcode.c
 	$(CC) $(CFLAGS) -c $(SRC)/rcode.c
