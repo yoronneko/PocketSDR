@@ -9,6 +9,8 @@
 CC  = gcc
 SRC = ../../src
 OPTIONS =
+INCLUDE = -I$(SRC)
+LDLIBS = -lfftw3f
 
 ifeq ($(OS),Windows_NT)
     #! for Windows
@@ -16,6 +18,8 @@ ifeq ($(OS),Windows_NT)
 	EXTSH = so
 	OPTSH = -shared
 	OPTIONS += -march=native
+	#! comment out for older CPU without AVX2
+	OPTIONS += -DAVX2
 else
     ifeq ($(shell uname -s),Linux)
         #! for Linux
@@ -23,6 +27,8 @@ else
 		EXTSH = so
 		OPTSH = -shared
 		OPTIONS += -march=native
+		#! comment out for older CPU without AVX2
+		OPTIONS += -DAVX2
     else ifeq ($(shell uname -s),Darwin)
         ifeq ($(shell uname -m),x86_64)
         	#! for macOS Intel
@@ -30,20 +36,18 @@ else
         else ifeq ($(shell uname -m),arm64)
         	#! for macOS Arm
             INSTALL = ../darwin_arm
+			INCLUDE += -I/opt/homebrew/Cellar/fftw/3.3.10/include
+			INCLUDE += -I/opt/homebrew/Cellar/libusb/1.0.25/include
+			LDLIBS  += -L/opt/homebrew/Cellar/fftw/3.3.10/lib
+			LDLIBS  += -L/opt/homebrew/Cellar/libusb/1.0.25/lib
 		endif
 		EXTSH = dylib
 		OPTSH = -dynamiclib
     endif
 endif
 
-INCLUDE = -I$(SRC)
-
-#! comment out for older CPU without AVX2
-#OPTIONS += -DAVX2
 
 CFLAGS = -Ofast $(INCLUDE) $(OPTIONS) -fPIC -g
-
-LDLIBS = -lfftw3f
 
 OBJ = sdr_func.o sdr_cmn.o
 
