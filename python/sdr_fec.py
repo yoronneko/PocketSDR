@@ -32,7 +32,7 @@ elif 'macOS' in env and 'x86_64' in env:
     libfec = cdll.LoadLibrary(dir + '/../lib/darwin_x86/libfec.dylib')
 elif 'macOS' in env and 'arm'    in env:
     libfec = cdll.LoadLibrary(dir + '/../lib/darwin_arm/libfec.dylib')
-except:
+else:
     print('load libfec.so error (%s)' % (env))
     exit()
 

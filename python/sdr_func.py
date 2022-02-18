@@ -27,13 +27,19 @@ env = platform.platform()
 try:
     if 'Windows' in env:
         libsdr = cdll.LoadLibrary(dir + '/../lib/win32/libsdr.so')
+        libsdr.init_lib(c_char_p((dir + '/fftw_wisdom.txt').encode()))
     elif 'Linux' in env:
         libsdr = cdll.LoadLibrary(dir + '/../lib/linux/libsdr.so')
+        libsdr.init_lib(c_char_p((dir + '/fftw_wisdom.txt').encode()))
     elif 'macOS' in env and 'x86_64' in env:
         librtk = cdll.LoadLibrary(dir + '/../lib/darwin_x86/librtk.dylib')
+        libsdr.init_lib(c_char_p((dir + '/fftw_wisdom_darwin_x86.txt').encode()))
     elif 'macOS' in env and 'arm'    in env:
         librtk = cdll.LoadLibrary(dir + '/../lib/darwin_arm/librtk.dylib')
-    libsdr.init_lib(c_char_p((dir + '/fftw_wisdom.txt').encode()))
+        libsdr.init_lib(c_char_p((dir + '/fftw_wisdom_darwin_arm.txt').encode()))
+    else:
+        print('load libldpc.so error (%s)' % (env))
+        exit()
 except:
     libsdr = None
 

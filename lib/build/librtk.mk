@@ -50,7 +50,7 @@ OBJ = rtkcmn.o tides.o rtksvr.o rtkpos.o postpos.o geoid.o solution.o lambda.o s
       novatel.o ublox.o ss2.o crescent.o skytraq.o javad.o nvs.o binex.o rt17.o septentrio.o \
       rtklib_wrap.o
 
-TARGET = libldpc.$(EXTSH)
+TARGET = librtk.$(EXTSH)
 
 $(TARGET) : $(OBJ)
 	$(CC) $(OPTSH) -o $@ $(OBJ) $(LDLIBS)

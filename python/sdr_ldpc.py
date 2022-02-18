@@ -35,7 +35,7 @@ elif 'macOS' in env and 'x86_64' in env:
     libldpc = cdll.LoadLibrary(dir + '/../lib/darwin_x86/libldpc.dylib')
 elif 'macOS' in env and 'arm'    in env:
     libldpc = cdll.LoadLibrary(dir + '/../lib/darwin_arm/libldpc.dylib')
-except:
+else:
     print('load libldpc.so error (%s)' % (env))
     exit()
 

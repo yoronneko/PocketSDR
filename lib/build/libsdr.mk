@@ -8,28 +8,49 @@
 
 CC  = gcc
 SRC = ../../src
+OPTIONS =
 
-#! uncomment for Windows
-INSTALL = ../win32
-
-#! uncomment for Linux
-#INSTALL = ../linux
+ifeq ($(OS),Windows_NT)
+    #! for Windows
+    INSTALL = ../win32
+	EXTSH = so
+	OPTSH = -shared
+	OPTIONS += -march=native
+else
+    ifeq ($(shell uname -s),Linux)
+        #! for Linux
+        INSTALL = ../linux
+		EXTSH = so
+		OPTSH = -shared
+		OPTIONS += -march=native
+    else ifeq ($(shell uname -s),Darwin)
+        ifeq ($(shell uname -m),x86_64)
+        	#! for macOS Intel
+            INSTALL = ../darwin_x86
+        else ifeq ($(shell uname -m),arm64)
+        	#! for macOS Arm
+            INSTALL = ../darwin_arm
+		endif
+		EXTSH = dylib
+		OPTSH = -dynamiclib
+    endif
+endif
 
 INCLUDE = -I$(SRC)
 
 #! comment out for older CPU without AVX2
-OPTIONS = -DAVX2
+#OPTIONS += -DAVX2
 
-CFLAGS = -Ofast -march=native $(INCLUDE) $(OPTIONS) -fPIC -g
+CFLAGS = -Ofast $(INCLUDE) $(OPTIONS) -fPIC -g
 
 LDLIBS = -lfftw3f
 
 OBJ = sdr_func.o sdr_cmn.o
 
-TARGET = libsdr.so
+TARGET = libsdr.$(EXTSH)
 
 $(TARGET) : $(OBJ)
-	$(CC) -shared -o $@ $(OBJ) $(LDLIBS)
+	$(CC) $(OPTSH) -o $@ $(OBJ) $(LDLIBS)
 
 sdr_func.o : $(SRC)/sdr_func.c
 	$(CC) -c $(CFLAGS) $(SRC)/sdr_func.c
