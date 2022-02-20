@@ -13,29 +13,29 @@ INCLUDE = -I$(SRC)
 LDLIBS = -lfftw3f
 
 ifeq ($(OS),Windows_NT)
-    #! for Windows
-    INSTALL = ../win32
+	#! for Windows
+	INSTALL = ../win32
 	EXTSH = so
 	OPTSH = -shared
 	OPTIONS += -march=native
 	#! comment out for older CPU without AVX2
 	OPTIONS += -DAVX2
 else
-    ifeq ($(shell uname -s),Linux)
-        #! for Linux
-        INSTALL = ../linux
+	ifeq ($(shell uname -s),Linux)
+		#! for Linux
+		INSTALL = ../linux
 		EXTSH = so
 		OPTSH = -shared
 		OPTIONS += -march=native
 		#! comment out for older CPU without AVX2
 		OPTIONS += -DAVX2
-    else ifeq ($(shell uname -s),Darwin)
-        ifeq ($(shell uname -m),x86_64)
-        	#! for macOS Intel
-            INSTALL = ../darwin_x86
-        else ifeq ($(shell uname -m),arm64)
-        	#! for macOS Arm
-            INSTALL = ../darwin_arm
+	else ifeq ($(shell uname -s),Darwin)
+		ifeq ($(shell uname -m),x86_64)
+			#! for macOS Intel
+			INSTALL = ../darwin_x86
+		else ifeq ($(shell uname -m),arm64)
+			#! for macOS Arm
+			INSTALL = ../darwin_arm
 			INCLUDE += -I/opt/homebrew/Cellar/fftw/3.3.10/include
 			INCLUDE += -I/opt/homebrew/Cellar/libusb/1.0.25/include
 			LDLIBS  += -L/opt/homebrew/Cellar/fftw/3.3.10/lib
@@ -43,9 +43,8 @@ else
 		endif
 		EXTSH = dylib
 		OPTSH = -dynamiclib
-    endif
+	endif
 endif
-
 
 CFLAGS = -Ofast $(INCLUDE) $(OPTIONS) -fPIC -g
 
