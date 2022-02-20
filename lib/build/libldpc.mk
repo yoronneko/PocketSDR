@@ -11,27 +11,27 @@ CC  = gcc
 SRC = ../LDPC-codes
 
 ifeq ($(OS),Windows_NT)
-    #! for Windows
-    INSTALL = ../win32
+	#! for Windows
+	INSTALL = ../win32
 	EXTSH = so
 	OPTSH = -shared
 else
-    ifeq ($(shell uname -s),Linux)
-        #! for Linux
-        INSTALL = ../linux
+	ifeq ($(shell uname -s),Linux)
+		#! for Linux
+		INSTALL = ../linux
 		EXTSH = so
 		OPTSH = -shared
-    else ifeq ($(shell uname -s),Darwin)
-        ifeq ($(shell uname -m),x86_64)
-        	#! for macOS Intel
-            INSTALL = ../darwin_x86
-        else ifeq ($(shell uname -m),arm64)
-        	#! for macOS Arm
-            INSTALL = ../darwin_arm
+	else ifeq ($(shell uname -s),Darwin)
+		ifeq ($(shell uname -m),x86_64)
+			#! for macOS Intel
+			INSTALL = ../darwin_x86
+		else ifeq ($(shell uname -m),arm64)
+			#! for macOS Arm
+			INSTALL = ../darwin_arm
 		endif
 		EXTSH = dylib
 		OPTSH = -dynamiclib
-    endif
+	endif
 endif
 
 TARGET = libldpc.$(EXTSH)
