@@ -32,7 +32,7 @@ ESC_RES = '\033[0m'  # ANSI escape reset
 def show_usage():
     print('Usage: pocket_acq.py [-sig sig] [-prn prn[,...]] [-tint tint]')
     print('       [-toff toff] [-f freq] [-fi freq] [-d freq] [-nz] [-np]')
-    print('       [-s] [-p] [-l] [-3d] file')
+    print('       [-s] [-p] [-l] [-3d] [-sdr sdrname] file')
     exit()
 
 # plot C/N0 --------------------------------------------------------------------
@@ -154,6 +154,29 @@ def add_text(ax, x, y, text, color='k'):
 #     -3d
 #         Plot correlation powers in a 3D-plot.
 #
+#     -sdr sdrname
+#         Specify SDR name: pocketsdr or bladerf. [pocketsdr]
+#
+#     file
+#         File path of the input digital IF data. The format should be a series of
+#         int8_t (signed byte) for real-sampling (I-sampling) or interleaved int8_t
+#         for complex-sampling (IQ-sampling). PocketSDR and AP pocket_dump can be
+#         used to capture such digital IF data.
+#
+#   GNSS signal type IDs
+#
+#         L1CA:  GPS, QZSS, SBAS L1C/A
+#         L1CB:  QZSS L1C/B
+#         L1CP:  GPS, QZSS L1Cp
+#         L1CD:  GPS, QZSS L1Cd
+#         L2CM:  GPS, QZSS L2CM
+#         L2CL:  GPS, QZSS L2CL
+#         L5I :  GPS, QZSS, SBAS L5I
+#         L5Q :  GPS, QZSS, SBAS L5Q
+#         L5SI:  QZSS L5SI
+#         L5SQ:  QZSS L5SQ
+#         L6D :  QZSS L6D
+#         L6E :  QZSS L6E
 #     file
 #         File path of the input digital IF data. The format should be a series of
 #         int8_t (signed byte) for real-sampling (I-sampling) or interleaved int8_t
@@ -209,6 +232,7 @@ if __name__ == '__main__':
     rect3 = [0, -0.05, 1, 1.25]
     file = ''
     label = 'PRN'
+    sdrname = 'pocketsdr'
     
     i = 1
     while i < len(sys.argv):
@@ -245,6 +269,9 @@ if __name__ == '__main__':
             opt[3] = True
         elif sys.argv[i] == '-s':
             opt[4] = True
+        elif sys.argv[i] == '-sdr':
+            i += 1
+            sdrname = sys.argv[i]
         elif sys.argv[i][0] == '-':
             show_usage()
         else:
@@ -269,7 +296,7 @@ if __name__ == '__main__':
     
     try:
         # read IF data
-        data = sdr_func.read_data(file, fs, 1 if fi > 0 else 2, T + Tcode, toff)
+        data = sdr_func.read_data(file, fs, 1 if fi > 0 else 2, T + Tcode, toff, sdrname)
         
         if not opt[3]:
             fig = plt.figure(window, figsize=size)

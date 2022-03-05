@@ -26,7 +26,7 @@ code_fft = {}       # code FFT caches
 def show_usage():
     print('Usage: pocket_snap.py [-ts time] [-pos lat,lon,hgt] [-ti sec] [-toff toff]')
     print('       [-f freq] [-fi freq] [-tint tint] [-sys sys[,...]] -nav file')
-    print('       [-out file] file')
+    print('       [-out file] [-sdr sdrname] file')
     exit()
 
 # euclid norm ------------------------------------------------------------------
@@ -289,6 +289,9 @@ def path_time(file):
 #     -out file
 #         Output solution file as RTKLIB solution format.
 #
+#     -sdr sdrname
+#         Specify SDR name: pocketsdr or bladerf. [pocketsdr]
+#
 #     file
 #         Digitized IF data file.
 #
@@ -298,6 +301,7 @@ if __name__ == '__main__':
     file, nfile, ofile = '', '', ''
     fp = sys.stdout
     ssys = SYS_GPS
+    sdrname = 'pocketsdr'
     
     i = 1
     while i < len(sys.argv):
@@ -334,6 +338,9 @@ if __name__ == '__main__':
         elif sys.argv[i] == '-out':
             i += 1
             ofile = sys.argv[i]
+        elif sys.argv[i] == '-sdr':
+            i += 1
+            sdrname = sys.argv[i]
         elif sys.argv[i][0] == '-':
             show_usage()
         else:
@@ -364,7 +371,7 @@ if __name__ == '__main__':
         
         # read DIF data
         IQ = 1 if fi > 0 else 2
-        dif = sdr_func.read_data(file, fs, IQ, tint, toff + ti * i)
+        dif = sdr_func.read_data(file, fs, IQ, tint, toff + ti * i, sdrname)
         if len(dif) == 0:
             break
         
