@@ -55,18 +55,31 @@ rect4  = [0.080, 0.040, 0.840, 0.110]
 rect5  = [-.430, 0.000, 1.800, 1.160]
 
 # read IF data -----------------------------------------------------------------
-def read_data(fp, N, IQ, buff, ix):
-    if fp == None:
-        raw = np.frombuffer(sys.stdin.buffer.read(N * IQ), dtype='int8')
+def read_data(fp, N, IQ, buff, ix, sdrname = 'pocketsdr'):
+    if sdrname == 'pocketsdr':
+        dt   ='int8'   # data type
+        ds   =  1      # data size
+        div  =  1      # divisor of data 
+        qsgn = -1      # Q sign inverted in MAX2771
+    elif sdrname == 'bladerf':
+        dt   = 'int16' # data type
+        ds   =   2     # data size
+        div  = 256     # divisor of data
+        qsgn =   1     # Q sign
     else:
-        raw = np.frombuffer(fp.read(N * IQ), dtype='int8')
-    
+        raise ValueError('Please specify appropriate SDR.')
+
+    if fp == None:
+        raw = np.frombuffer(sys.stdin.buffer.read(N * IQ * ds), dtype=dt)
+    else:
+        raw = np.frombuffer(fp.read(N * IQ * ds), dtype=dt)
+
     if len(raw) < N * IQ:
         return False
     elif IQ == 1: # I
-        buff[ix:ix+N] = np.array(raw, dtype='complex64')
-    else: # IQ (Q sign inverted in MAX2771)
-        buff[ix:ix+N] = np.array(raw[0::2] - raw[1::2] * 1j, dtype='complex64')
+        buff[ix:ix+N] = np.array(raw/div, dtype='complex64')
+    else: # IQ
+        buff[ix:ix+N] = np.array(raw[0::2]/div + raw[1::2]*1j*qsgn/div, dtype='complex64')
     return True
 
 # print receiver channel status header -----------------------------------------
@@ -348,7 +361,7 @@ def set_axcolor(ax, color):
 def show_usage():
     print('Usage: pocket_trk.py [-sig sig] [-prn prn[,...]] [-p] [-e] [-toff toff] [-f freq]')
     print('           [-fi freq] [-IQ] [-ti tint] [-ts tspan] [-yl ylim] [-log path]')
-    print('           [-out path] [-q] [file]')
+    print('           [-out path] [-q] [-sdr sdrname] [file]')
     exit()
 
 #-------------------------------------------------------------------------------
@@ -431,6 +444,9 @@ def show_usage():
 #     -q
 #         Suppress showing signal tracking status.
 #
+#     -sdr sdrname
+#         Specify SDR name: pocketsdr or bladerf. [pocketsdr]
+#
 #     [file]
 #         File path of the input digital IF data. The format should be a series of
 #         int8_t (signed byte) for real-sampling (I-sampling) or interleaved int8_t
@@ -443,6 +459,7 @@ if __name__ == '__main__':
     fs, fi, IQ, toff, tint, tspan = 12e6, 0.0, 1, 0.0, 0.1, 1.0
     ch = {}
     file, log_file, log_lvl, quiet = '', '', 4, 0
+    sdrname = 'pocketsdr'
     
     i = 1
     while i < len(sys.argv):
@@ -483,6 +500,9 @@ if __name__ == '__main__':
             log_file = sys.argv[i]
         elif sys.argv[i] == '-q':
             quiet = 1
+        elif sys.argv[i] == '-sdr':
+            i += 1
+            sdrname = sys.argv[i]
         elif sys.argv[i][0] == '-':
             show_usage()
         else:
@@ -533,7 +553,7 @@ if __name__ == '__main__':
             time_rcv = toff + T * (i - 1) # receiver time
             
             # read IF data to buffer
-            if not read_data(fp, N, IQ, buff, N * (i % MAX_BUFF)):
+            if not read_data(fp, N, IQ, buff, N * (i % MAX_BUFF), sdrname):
                 break;
             
             if i == 0:

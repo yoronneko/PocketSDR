@@ -68,18 +68,29 @@ log_str = None     # log stream
 #  returns:
 #      data     Digitized IF data as complex64 ndarray (length == 0: read error)
 #
-def read_data(file, fs, IQ, T, toff=0.0):
+def read_data(file, fs, IQ, T, toff=0.0, sdrname='pocketsdr'):
     off = int(fs * toff * IQ)
     cnt = int(fs * T * IQ) if T > 0.0 else -1 # all if T=0.0
-    
-    raw = np.fromfile(file, dtype=np.int8, offset=off, count=cnt)
-    
+
+    if sdrname == 'pocketsdr':
+        dt   = 'int8'  # data type
+        div  =  1      # divisor of data 
+        qsgn = -1      # Q sign inverted in MAX2771
+    elif sdrname == 'bladerf':
+        dt   = 'int16' # data type
+        div  = 256     # divisor of data
+        qsgn = 1       # Q sign
+    else:
+        raise ValueError('Please specify appropriate SDR.')
+
+    raw = np.fromfile(file, dtype=dt, offset=off, count=cnt)
+
     if len(raw) < cnt:
         return np.array([], dtype='complex64')
     elif IQ == 1: # I-sampling
-        return np.array(raw, dtype='complex64')
+        return np.array(raw/div, dtype='complex64')
     else: # IQ-sampling
-        return np.array(raw[0::2] - raw[1::2] * 1j, dtype='complex64')
+        return np.array(raw[0::2]/div + raw[1::2] * 1j*qsgn/div, dtype='complex64')
 
 #-------------------------------------------------------------------------------
 #  Search signals in digitized IF data. The signals are searched by parallel
