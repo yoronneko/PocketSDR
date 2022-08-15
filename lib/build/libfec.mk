@@ -10,30 +10,24 @@ SRC = ../libfec
 
 CONFOPT =
 ifeq ($(OS),Windows_NT)
-	#! for Windows
 	INSTALL = ../win32
-	EXTSH = so
+	TARGET = libfec.so libfec.a
 else
 	ifeq ($(shell uname -s),Linux)
-		#! for Linux
 		INSTALL = ../linux
-		EXTSH = so
+		TARGET = libfec.so libfec.a
 	else ifeq ($(shell uname -s),Darwin)
 		ifeq ($(shell uname -m),x86_64)
-			#! for macOS Intel
 			INSTALL = ../darwin_x86
 			CONFOPT = --target=x86-apple-darwin --build=x86-apple-darwin
 		else ifeq ($(shell uname -m),arm64)
-			#! for macOS Arm
 			INSTALL = ../darwin_arm
 		endif
-		EXTSH = dylib
+		TARGET = libfec.dylib
 	endif
 endif
 
-TARGET = libfec.$(EXTSH)
-
-$(TARGET) :
+all :
 	DIR=`pwd`; \
 	cd $(SRC); \
 	./configure $(CONFOPT); \
@@ -41,7 +35,7 @@ $(TARGET) :
 	mv makefile.p makefile; \
 	make; \
 	cd $$DIR; \
-	cp $(SRC)/$@ .
+	cp $(SRC)/libfec.so $(SRC)/libfec.a .
 
 clean:
 	DIR=`pwd`; \

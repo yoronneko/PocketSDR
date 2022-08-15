@@ -1,5 +1,5 @@
 #
-#  makefile of LDPC-codes shared library (libldpc.so)
+#  makefile of LDPC-codes library (libldpc.so, libldpc.a)
 #
 #! You need to install LDPC-codes source tree as follows.
 #!
@@ -11,30 +11,24 @@ CC  = gcc
 SRC = ../LDPC-codes
 
 ifeq ($(OS),Windows_NT)
-	#! for Windows
 	INSTALL = ../win32
-	EXTSH = so
+	TARGET = libldpc.so libldpc.a
 	OPTSH = -shared
 else
 	ifeq ($(shell uname -s),Linux)
-		#! for Linux
 		INSTALL = ../linux
-		EXTSH = so
+		TARGET = libldpc.so libldpc.a
 		OPTSH = -shared
 	else ifeq ($(shell uname -s),Darwin)
 		ifeq ($(shell uname -m),x86_64)
-			#! for macOS Intel
 			INSTALL = ../darwin_x86
 		else ifeq ($(shell uname -m),arm64)
-			#! for macOS Arm
 			INSTALL = ../darwin_arm
 		endif
-		EXTSH = dylib
+		TARGET = libldpc.dylib
 		OPTSH = -dynamiclib
 	endif
 endif
-
-TARGET = libldpc.$(EXTSH)
 
 INCLUDE = -I$(SRC)
 
@@ -44,9 +38,16 @@ OBJ = rcode.o channel.o dec.o enc.o alloc.o intio.o blockio.o \
       check.o open.o mod2dense.o mod2sparse.o mod2convert.o \
       distrib.o rand.o
 
-
 $(TARGET) : $(OBJ)
 	$(CC) $(OPTSH) -o $@ $(OBJ)
+
+all: $(TARGET)
+
+libldpc.so : $(OBJ)
+	$(CC) -shared -o $@ $(OBJ)
+
+libldpc.a : $(OBJ)
+	$(AR) r $@ $(OBJ)
 
 rcode.o   : $(SRC)/rcode.c
 	$(CC) $(CFLAGS) -c $(SRC)/rcode.c
