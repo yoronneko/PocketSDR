@@ -1,12 +1,12 @@
-# **PocketSDR - An Open-Source GNSS SDR, ver. 0.6**
+# **Pocket SDR - An Open-Source GNSS SDR, ver. 0.8**
 
 ## **Overview**
 
-PocketSDR is an open-source GNSS (Global Navigation Satellite System) receiver
+Pocket SDR is an open-source GNSS (Global Navigation Satellite System) receiver
 based on SDR (software defined radio) technology. It consists of a RF front-end
 device, some utilities for the device and GNSS-SDR APs (application programs)
-written in Python. It supports almost all signals for GPS, GLONASS, Galileo,
-QZSS, BeiDou and SBAS.
+written in Python and C. It supports almost all signals for GPS, GLONASS,
+Galileo, QZSS, BeiDou, NavIC and SBAS.
 
 The RF front-end device consists of 2 CH Maxim MAX2771 GNSS RF front-end IC
 (LNA, mixer, filter, ADC, frequency synthesizer) and Cypress EZ-USB FX2LP USB
@@ -15,41 +15,49 @@ L1 band (1525 - 1610 MHz) and CH2 is for GNSS L2/L5/L6 band (1160 - 1290 MHz).
 The frequency of the reference oscillator (TCXO) is 24.000 MHz and ADC sampling
 frequency can be configured up to 24 MHz.
 
-PocketSDR contains some utility programs for the RF front-end device to
+Pocket SDR contains some utility programs for the RF front-end device to
 configure the device, capture and dump the digitized IF (inter-frequency) data.
 These supports Windows, Linux and other environments.
 
-PocketSDR also provides GNSS-SDR APs to show the PSD (power spectrum density)
+Pocket SDR also provides GNSS-SDR APs to show the PSD (power spectrum density)
 of captured IF data, search the GNSS signals, track these signals and decode
 navigation data in them. The supported GNSS signals are as follows. These APs
 are written in Python by very compact way. They are easily modified by users
 to add user's unique algorithms. 
 
-GPS: L1C/A, L1CP, L1CD, L2CM, L5I, L5Q, GLONASS: L1C/A, L2C/A, Galileo: E1B,
-E1C, E5aI, E5aQ, E5bI, E5bQ, E6B, E6C, QZSS: L1C/A, L1C/B, L1CP, L1CD, L1S,
-L2CM, L5I, L5Q, L5SI, L5SQ, L6D, L6E, BeiDou: B1I, B1CP, B1CD, B2I, B2aD, B2aP,
-B2bI, B3I, SBAS: L1C/A, L5I, L5Q
+GPS: L1C/A, L1CP, L1CD, L2CM, L5I, L5Q, GLONASS: L1C/A, L2C/A, L3OCD, L3OCP,
+Galileo: E1B, E1C, E5aI, E5aQ, E5bI, E5bQ, E6B, E6C, QZSS: L1C/A, L1C/B, L1CP,
+L1CD, L1S, L2CM, L5I, L5Q, L5SI, L5SQ, L6D, L6E, BeiDou: B1I, B1CP, B1CD, B2I,
+B2aD, B2aP, B2bI, B3I, NavIC: L5-SPS, SBAS: L1C/A, L5I, L5Q
 
 <img src="image/pocket_sdr_image.jpg" width=80%>
+
+The introduction of Pocket SDR is shown in the following slides.
+
+T.Takasu, An Open Source GNSS SDR: Development and Application, IPNTJ Next GNSS
+Technology WG, Feb 21, 2022
+(https://gpspp.sakura.ne.jp/paper2005/IPNTJ_NEXTWG_202202.pdf)
 
 --------------------------------------------------------------------------------
 
 ## **Package Structure**
 ```
-PocketSDR --+-- bin     PocketSDR utility binary programs for Windows
-            +-- src     PocketSDR utility source programs
-            +-- python  PocketSDR utility Python scripts
-            +-- lib     External shared library for Python scripts
+PocketSDR --+-- bin     Pocket SDR utilities and APs binary programs for Windows
+            +-- app     Pocket SDR utilities and APs source programs
+            +-- src     Pocket SDR library source programs
+            +-- python  Pocket SDR Python scripts
+            +-- lib     External library for utilities and APs
             +-- conf    Configuration files for device settings
             +-- driver  Windows driver for EZ-USB FX2LP/FX3 (cyusb3.sys) ([4])
             +-- doc     Documents (ref {1], [2])
             +-- FW      Firmware source programs and images
             |   +-- cypress  Cypress libraries for EZ-USB firmware development
             |                (ref [4])
-            +-- HW      PocketSDR CAD data and parts list for hardware
+            +-- HW      Pocket SDR RF frontend CAD data and parts list
             |           (*.brd and *.sch are for Eagle, *.f3d is for Fusion 360)
             +-- image   Image files for documents
-            +-- sample  Sample digital IF data captured by PocketSDR
+            +-- sample  Sample digital IF data captured by Pocket SDR
+            +-- test    Test codes
 ```
 
 --------------------------------------------------------------------------------
@@ -58,25 +66,24 @@ PocketSDR --+-- bin     PocketSDR utility binary programs for Windows
 
 * Extract PocketSDR.zip to an appropriate directory <install_dir>.
 
-* Attach PocketSDR to PC via USB cable.
+* Attach Pocket SDR RF frontend to PC via USB cable.
 
-* Install USB driver (CYUSB) for PocketSDR.
-    
-    * Open Windows Device Manager, select "EZ-USB" as "Universal Serial Bus Device"
-    * Select right-button menu Update Driver, select "Browse your computer for driver software"
-      and input the CyUSB driver path (PocketSDR\driver\).
-    * After the driver installation , you find "Cypress FX2LP Sample Device" as 
-      "Universal Serial Bus Controller" in Windows Device Manager.
-    
-    <br>
-* Add the PocketSDR binary programs path (<install_dir>\PocketSDR\bin) to 
+* Install USB driver (CYUSB) for Pocket SDR RF frontend according to
+  PocketSDR\driver\readme.txt.
+
+* Add the Pocket SDR binary programs path (<install_dir>\PocketSDR\bin) to 
   the command search path (Path) of Windows environment variables.
 
-* Add the PocketSDR Python scripts path (<install_dir>\PocketSDR\python) to 
+* Add the Pocket SDR Python scripts path (<install_dir>\PocketSDR\python) to 
   the command search path (Path) of Windows environment variables.
 
 * To rebuild the binary programs, you need MinGW64 and libusb-1.0 library. 
   Refer MSYS2 (https://www.msys2.org/) for details.
+
+* In MinGW64 environment, you need fftw3 library. To install fftw3 library.
+```
+    $ pacman -S mingw-w64-x86_64-fftw
+```
 
 --------------------------------------------------------------------------------
 
@@ -90,21 +97,23 @@ PocketSDR --+-- bin     PocketSDR utility binary programs for Windows
 ```
     $ sudo apt install libusb-1.0-0-dev
 ```
-* Move to the source program directory, edit makefile and build utilities.
+* Install libfftw3 developtment package. For Ubuntu:
 ```
-    $ cd <install_dir>/src
-    $ vi makefile
-    ...
-    #INCLUDE = -I../lib/cyusb
-    #OPTIONS = -DCYUSB
-    ...
-    #LDLIBS = ../lib/cyusb/CyAPI.a -lsetupapi -lwinmm
-    LDLIBS = -lusb-1.0
-    ...
+    $ sudo apt install libfftw3-dev
+```
+* Move to the library directory, build libraries.
+```
+    $ cd <install_dir>/lib/build
     $ make
     $ make install
 ```
-* Add the PocketSDR binary programs path (<install_dir>/PocketSDR/bin) to 
+* Move to the source program directory, build utilities and APs.
+```
+    $ cd <install_dir>/app
+    $ make
+    $ make install
+```
+* Add the Pocket SDR binary programs path (<install_dir>/PocketSDR/bin) to 
   the command search path.
 
 * Usually you need to have root permission to access USB devices. So you add
@@ -118,7 +127,7 @@ sudo to execute pocket_conf, pocket_dump like:
 
 ## **Utility Programs for RF frontend**
 
-PocketSDR contains the following utility programs.
+Pocket SDR contains the following utility programs.
 
 - **pocket_conf**: SDR device configurator
 - **pocket_scan**: Scan and list USB Devices
@@ -131,17 +140,21 @@ src/pocket_dump.c.
 
 ## **GNSS-SDR APs (Application Programs)**
 
-PocketSDR contains the following application programs for GNSS-SDR.
+Pocket SDR contains the following application programs for GNSS-SDR.
 
-- **pocket_psd.py**: Plot PSD and histgrams of digital IF data
-- **pocket_acq.py**: GNSS signal acquisition in digital IF data
-- **pocket_trk.py**: GNSS signal tracking and navigation data decoding in digital IF data
+- **pocket_psd.py** : Plot PSD and histgrams of digital IF data
+- **pocket_acq.py** : GNSS signal acquisition in digital IF data
+- **pocket_trk.py** : GNSS signal tracking and navigation data decoding in digital IF data
+- **pocket_snap.py**: Snapshot positioning with digital IF data
+- **pocket_plot.py**: Plot GNSS signal tracking log by pocket_trk.py
+- **pocket_acq**    : C-version of pocket_acq.py (w/o graph plots)
+- **pocket_trk**    : C-version of pocket_trk.py (w/o graph plots)
 
-For details, refer comment lines in python/pocket_psd.py, python/pocket_acq.py
-and python/pocket_trk.py. You need Python 3, Numpy, Scipy and matplotlib to
-execute Python scripts. pocket_trk.py uses external shared libraries of
-LIBFEC [5] and RTKLIB [6] in lib/ directory.  These were built for Windows
-(64bit) and Linux for x86_64 CPU.
+For details, refer comment lines in python/pocket_psd.py, python/pocket_acq.py,
+python/pocket_trk.py, python/pocket_snap.py and python/pocket_plot.py. You need
+Python 3, Numpy, Scipy and matplotlib to execute Python scripts. pocket_trk.py
+uses external shared libraries of LIBFEC [5] and RTKLIB [6] in lib/ directory.
+These were built for Windows (64bit) and Linux for x86_64 CPU.
 
 --------------------------------------------------------------------------------
 
@@ -199,7 +212,7 @@ LIBFEC [5] and RTKLIB [6] in lib/ directory.  These were built for Windows
 
 --------------------------------------------------------------------------------
 
-## **Rebuild F/W and Write F/W Image to PocketSDR**
+## **Rebuild F/W and Write F/W Image to Pocket SDR RF frontend**
 
 * Install Cypress EZ-USB FX2LP Development Kit (ref [4]) to a Windows PC. As
 default, it is installed to C:\Cypress and C:\Keil.
@@ -212,7 +225,7 @@ and open the project.
 * Execute Menu Project - Rebuild all target files and you can get a F/W image
 as <install_dir>\PocketSDR\FW\pocket_fw.iic.
 
-* Attach PocketSDR via USB cable to the PC.
+* Attach Pocket SDR RF frontend via USB cable to the PC.
 
 * Execute USB Control Center (C:\Cypress\USB\CY3684_EZ-USB_FX2LP_DVK\1.1\Windows Applications\
 c_sharp\controlcenter\bin\Release\CyControl.exe).
@@ -223,8 +236,8 @@ select the F/W image <install_dir>\PocketSDR\FW\pocket_fw.iic and open it.
 * If you see "Programming succeeded." in status bar, the F/W is properly written
 to PocketSDR.
 
-* To use utility programs for PocketSDR, you need to reinstall WinUSB driver for
-PocketSDR. Refer "Installation for Windows" above.
+* To use utility programs for Pocket SDR, you need to reinstall WinUSB driver for
+Pocket SDR. Refer "Installation for Windows" above.
 
 --------------------------------------------------------------------------------
 
@@ -254,4 +267,6 @@ PocketSDR. Refer "Installation for Windows" above.
 - 2021-12-25  0.4  Add and modify Python scripts
 - 2022-01-05  0.5  Fix several problems.
 - 2022-01-13  0.6  Add and modify Python scripts
+- 2022-02-15  0.7  Improve performance, Add some Python scripts.
+- 2022-07-08  0.8  Add C-version of pocket_acq.py and pocket_trk.py.
 

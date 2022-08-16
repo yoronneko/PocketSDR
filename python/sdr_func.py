@@ -9,22 +9,43 @@
 #  2021-12-24  1.1  fix several problems
 #  2022-01-13  1.2  add API unpack_data()
 #                   DOP_STEP: 0.25 -> 0.5
+#  2022-01-20  1.3  use external library for mix_carr(), corr_std(), corr_fft()
+#                   modify API search_sig(), search_code(), mix_carr() 
+#  2022-01-25  1.4  support TCP client/server for log stream
+#  2022-05-18  1.5  support API changes of sdr_func.c
+#                   support np.fromfile() without offset option
 #
 from math import *
-import time
+from ctypes import *
+import time, os, re, platform
 import numpy as np
+from numpy import ctypeslib
 import scipy.fftpack as fft
-import sdr_code
+import sdr_code, sdr_rtk
+
+# load external library --------------------------------------------------------
+dir = os.path.dirname(__file__)
+env = platform.platform()
+try:
+    if 'Windows' in env:
+        libsdr = cdll.LoadLibrary(dir + '/../lib/win32/libsdr.so')
+    elif 'Linux' in env:
+        libsdr = cdll.LoadLibrary(dir + '/../lib/linux/libsdr.so')
+    else:
+        raise
+except:
+    libsdr = None
+else:
+    libsdr.sdr_func_init(c_char_p((dir + '/fftw_wisdom.txt').encode()))
 
 # constants --------------------------------------------------------------------
-MAX_DOP  = 5000.0  # default max Doppler frequency to search signals (Hz)
 DOP_STEP = 0.5     # Doppler frequency search step (* 1 / code cycle)
-#DOP_STEP = 0.25    # Doppler frequency search step (* 1 / code cycle)
+LIBSDR_ENA = True  # enable flag of LIBSDR
 
 # global variable --------------------------------------------------------------
 carr_tbl = []      # carrier lookup table 
 log_lvl = 3        # log level
-log_fp = None      # log file pointer
+log_str = None     # log stream
 
 #-------------------------------------------------------------------------------
 #  Read digitalized IF (inter-frequency) data from file. Supported file format
@@ -45,7 +66,10 @@ def read_data(file, fs, IQ, T, toff=0.0):
     off = int(fs * toff * IQ)
     cnt = int(fs * T * IQ) if T > 0.0 else -1 # all if T=0.0
     
-    raw = np.fromfile(file, dtype=np.int8, offset=off, count=cnt)
+    f = open(file, 'rb')
+    f.seek(off, os.SEEK_SET)
+    raw = np.fromfile(f, dtype=np.int8, count=cnt)
+    f.close()
     
     if len(raw) < cnt:
         return np.array([], dtype='complex64')
@@ -55,65 +79,13 @@ def read_data(file, fs, IQ, T, toff=0.0):
         return np.array(raw[0::2] - raw[1::2] * 1j, dtype='complex64')
 
 #-------------------------------------------------------------------------------
-#  Search signals in digitized IF data. The signals are searched by parallel
-#  code search algorithm in the Doppler frequencies - code offset space with or
-#  w/o zero-padding option.
-#
-#  args:
-#      sig      (I) Signal type as string ('L1CA', 'L1CB', 'L1CP', ....)
-#      prn      (I) PRN number
-#      data     (I) Digitized IF data as complex64 ndarray
-#      fs       (I) Sampling frequency (Hz)
-#      fi       (I) IF frequency (Hz)
-#      max_dop  (I) Max Doppler frequency for signal search (Hz) (optional)
-#      zero_pad (I) Zero-padding option for singal search (optional)
-#
-#  returns:
-#      P        Normalized correlation powers in the Doppler frequencies - Code
-#               offset space as float32 2D-ndarray
-#      fds      Doppler frequencies for signal search as ndarray (Hz)
-#      coffs    Code offsets for signal search as ndarray (s)
-#      ix       Index of position with max correlation power in the search space
-#               (ix[0]: in Doppler frequencies, ix[1]: in Code offsets)
-#      cn0      C/N0 of max correlation power (dB-Hz)
-#
-def search_sig(sig, prn, data, fs, fi, max_dop=MAX_DOP, zero_pad=True):
-    # generate code
-    code = sdr_code.gen_code(sig, prn)
-    
-    if len(code) == 0:
-        return [], [0.0], [0.0], (0, 0), 0.0, 0.0
-    
-    # shift IF frequency for GLONASS FDMA
-    fi = shift_freq(sig, prn, fi)
-    
-    # generate code FFT
-    T = sdr_code.code_cyc(sig)
-    N = int(fs * T)
-    code_fft = sdr_code.gen_code_fft(code, T, 0.0, fs, N, N if zero_pad else 0)
-    
-    # doppler search bins
-    fds = dop_bins(T, max_dop)
-    
-    # parallel code search and non-coherent integration
-    P = np.zeros((len(fds), N), dtype='float32')
-    for i in range(0, len(data) - len(code_fft) + 1, N):
-        P += search_code(code_fft, T, data[i:i+len(code_fft)], fs, fi, fds)
-    
-    # max correlation power and C/N0
-    P_max, ix, cn0 = corr_max(P, T)
-    
-    coffs = np.arange(0, T, 1.0 / fs, dtype='float32')
-    
-    return P / P_max, fds, coffs, ix, cn0
-
-#-------------------------------------------------------------------------------
 #  Parallel code search in digitized IF data.
 #
 #  args:
 #      code_fft (I) Code DFT (with or w/o zero-padding)
 #      T        (I) Code cycle (period) (s)
-#      data     (I) Digitized IF data as complex64 ndarray
+#      buff     (I) Buffer of IF data as complex64 ndarray
+#      ix       (I) Index of buffer
 #      fs       (I) Sampling frequency (Hz)
 #      fi       (I) IF frequency (Hz)
 #      fds      (I) Doppler frequency bins as ndarray (Hz)
@@ -122,13 +94,13 @@ def search_sig(sig, prn, data, fs, fi, max_dop=MAX_DOP, zero_pad=True):
 #      P        Correlation powers in the Doppler frequencies - Code offset
 #               space as float32 2D-ndarray
 #
-def search_code(code_fft, T, data, fs, fi, fds):
+def search_code(code_fft, T, buff, ix, fs, fi, fds):
     N = int(fs * T)
     P = np.zeros((len(fds), N), dtype='float32')
     
     for i in range(len(fds)):
-        data_carr = mix_carr(data, fs, fi + fds[i], 0.0)
-        P[i] = np.abs(corr_fft(data_carr, code_fft)[0:N]) ** 2
+        C = corr_fft(buff, ix, len(code_fft), fs, fi + fds[i], 0.0, code_fft)[:N]
+        P[i] = np.abs(C) ** 2
     return P
 
 # max correlation power and C/N0 -----------------------------------------------
@@ -139,6 +111,13 @@ def corr_max(P, T):
     cn0 = 10.0 * log10((P_max - P_ave) / P_ave / T) if P_ave > 0.0 else 0.0
     return P_max, ix, cn0
 
+# fine Doppler frequency by quadratic fitting ----------------------------------
+def fine_dop(P, fds, ix):
+    if ix == 0 or ix == len(fds) - 1:
+        return fds[ix]
+    p = np.polyfit(fds[ix-1:ix+2], P[ix-1:ix+2], 2)
+    return -p[1] / (2.0 * p[0])
+
 # shift IF frequency for GLONASS FDMA ------------------------------------------
 def shift_freq(sig, fcn, fi):
     if sig == 'G1CA':
@@ -148,21 +127,58 @@ def shift_freq(sig, fcn, fi):
     return fi
 
 # doppler search bins ----------------------------------------------------------
-def dop_bins(T, max_dop):
-    return np.arange(-max_dop, max_dop + DOP_STEP / T, DOP_STEP / T)
+def dop_bins(T, dop, max_dop):
+    return np.arange(dop - max_dop, dop + max_dop + DOP_STEP / T, DOP_STEP / T)
+
+# mix carrier and standard correlator ------------------------------------------
+def corr_std(buff, ix, N, fs, fc, phi, code, pos):
+    if libsdr and LIBSDR_ENA:
+        corr = np.empty(len(pos), dtype='complex64')
+        pos = np.array(pos, dtype='int32')
+        libsdr.sdr_corr_std.argtypes = [
+            ctypeslib.ndpointer('complex64'), c_int32, c_int32, c_double,
+            c_double, c_double, ctypeslib.ndpointer('complex64'),
+            ctypeslib.ndpointer('int32'), c_int32,
+            ctypeslib.ndpointer('complex64')]
+        libsdr.sdr_corr_std(buff, ix, N, fs, fc, phi, code, pos, len(pos), corr)
+        return corr
+    else:
+        data = mix_carr(buff, ix, N, fs, fc, phi)
+        return corr_std_(data, code, pos)
+
+# mix carrier and FFT correlator -----------------------------------------------
+def corr_fft(buff, ix, N, fs, fc, phi, code_fft):
+    if libsdr and LIBSDR_ENA:
+        corr = np.empty(N, dtype='complex64')
+        libsdr.sdr_corr_fft.argtypes = [
+            ctypeslib.ndpointer('complex64'), c_int32, c_int32, c_double,
+            c_double, c_double, ctypeslib.ndpointer('complex64'),
+            ctypeslib.ndpointer('complex64')]
+        libsdr.sdr_corr_fft(buff, ix, N, fs, fc, phi, code_fft, corr)
+        return corr
+    else:
+        data = mix_carr(buff, ix, N, fs, fc, phi)
+        return corr_fft_(data, code_fft)
 
 # mix carrier ------------------------------------------------------------------
-def mix_carr(data, fs, fc, phi):
-    N = 256 # carrier lookup table size
-    global carr_tbl
-    if len(carr_tbl) == 0:
-        carr_tbl = np.array(np.exp(-2j * np.pi * np.arange(N) / N),
-                       dtype='complex64')
-    ix = ((fc / fs * np.arange(len(data)) + phi) * N).astype('int')
-    return data * carr_tbl[ix % N]
-    
+def mix_carr(buff, ix, N, fs, fc, phi):
+    if libsdr and LIBSDR_ENA:
+        data = np.empty(N, dtype='complex64')
+        libsdr.sdr_mix_carr.argtypes = [
+            ctypeslib.ndpointer('complex64'), c_int32, c_int32, c_double,
+            c_double, c_double, ctypeslib.ndpointer('complex64')]
+        libsdr.sdr_mix_carr(buff, ix, N, fs, fc, phi, data)
+        return data
+    else:
+        global carr_tbl
+        if len(carr_tbl) == 0:
+            carr_tbl = np.array(np.exp(-2j * np.pi * np.arange(256) / 256),
+                           dtype='complex64')
+        i = ((fc / fs * np.arange(N) + phi) * 256).astype('uint8')
+        return buff[ix:ix+N] * carr_tbl[i]
+
 # standard correlator ----------------------------------------------------------
-def corr_std(data, code, pos):
+def corr_std_(data, code, pos):
     N = len(data)
     corr = np.zeros(len(pos), dtype='complex64')
     for i in range(len(pos)):
@@ -175,22 +191,27 @@ def corr_std(data, code, pos):
     return corr
 
 # FFT correlator ---------------------------------------------------------------
-def corr_fft(data, code_fft):
-    return fft.ifft(fft.fft(data) * code_fft)
+def corr_fft_(data, code_fft):
+    return fft.ifft(fft.fft(data) * code_fft) / len(data)
 
 # open log ---------------------------------------------------------------------
-def log_open(file):
-    global log_fp
-    try:
-        log_fp = open(file, 'w')
-    except:
-        print('log open error %s' % (file))
+def log_open(path):
+    global log_str
+    m = re.search(r'([^:]*):([^:]+)', path)
+    if not m: # file
+        log_str = sdr_rtk.stropen(sdr_rtk.STR_FILE, sdr_rtk.STR_MODE_W, path)
+    elif not m.group(1): # TCP server
+        log_str = sdr_rtk.stropen(sdr_rtk.STR_TCPSVR, sdr_rtk.STR_MODE_W, path)
+    elif not m.group(2): # TCP client
+        log_str = sdr_rtk.stropen(sdr_rtk.STR_TCPCLI, sdr_rtk.STR_MODE_W, path)
+    if not log_str:
+        print('log stream open error %s' % (path))
 
 # close log --------------------------------------------------------------------
 def log_close():
-    global log_fp
-    log_fp.close()
-    log_fp = None
+    global log_str
+    sdr_rtk.strclose(log_str)
+    log_str = None
 
 # set log level ----------------------------------------------------------------
 def log_level(level):
@@ -199,12 +220,12 @@ def log_level(level):
 
 # output log -------------------------------------------------------------------
 def log(level, msg):
-    global log_fp, log_lvl
+    global log_str, log_lvl
     if log_lvl == 0:
         print(msg)
-    elif log_fp and level <= log_lvl:
-        log_fp.write(msg + '\r\n')
-        log_fp.flush()
+    elif log_str and level <= log_lvl:
+        buff = np.frombuffer((msg + '\r\n').encode(), dtype='uint8')
+        sdr_rtk.strwrite(log_str, buff)
 
 # parse numbers list and range -------------------------------------------------
 def parse_nums(str):
@@ -264,4 +285,3 @@ def hex_str(data):
     for i in range(len(data)):
         str += '%02X' % (data[i])
     return str
-

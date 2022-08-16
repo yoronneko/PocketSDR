@@ -1,6 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
-#  PocketSDR Python AP - Plot PSD and histgrams of digital IF data
+#  Pocket SDR Python AP - Plot PSD and histgrams of digital IF data
 #
 #  Author:
 #  T.TAKASU
@@ -20,7 +20,7 @@ import sdr_func
 
 # show usage --------------------------------------------------------------------
 def show_usage():
-    print('Usage: pocket_psd.py [-t tint] [-f freq] [-IQ] [-h] [-n NFFT] file')
+    print('Usage: pocket_psd.py [-t tint] [-f freq] [-IQ] [-h] [-n NFFT] [-sdr sdrname] file')
     exit()
 
 # plot PSD ---------------------------------------------------------------------
@@ -125,6 +125,9 @@ def update_hist(ax, p, data, IQ, fc):
 #     -n NFFT
 #         Number of FFT data points for PSD. [4096]
 # 
+#     -sdr sdrname
+#         Specify SDR name: pocketsdr or bladerf [pocketsdr]
+# 
 #
 if __name__ == '__main__':
     window = 'PocketSDR - POWER SPECTRAL DENSITY'
@@ -140,6 +143,7 @@ if __name__ == '__main__':
     rect0 = [0.08, 0.09, 0.84, 0.85]
     rect1 = [0.08, 0.09, 0.56, 0.85]
     rect2 = [0.67, 0.09, 0.30, 0.85]
+    sdrname = 'pocketsdr'
     
     i = 1
     while i < len(sys.argv):
@@ -156,6 +160,9 @@ if __name__ == '__main__':
             IQ = 2
         elif sys.argv[i] == '-h':
             hist = 1
+        elif sys.argv[i] == '-sdr':
+            i += 1
+            sdrname = sys.argv[i]
         elif sys.argv[i][0] == '-':
             show_usage()
         else:
@@ -180,7 +187,7 @@ if __name__ == '__main__':
     
     try:
         for i in range(0, 10000000):
-            data = sdr_func.read_data(file, fs, IQ, tint, toff=tint * i)
+            data = sdr_func.read_data(file, fs, IQ, tint, toff=tint * i, sdrname=sdrname)
             
             if plt.figure(window) != fig: # window closed
                 exit()
