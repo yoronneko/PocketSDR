@@ -27,15 +27,18 @@ import numpy as np
 # load library of LDPC-codes ([1],[2]) -----------------------------------------
 env = platform.platform()
 dir = os.path.dirname(__file__)
-if 'Windows' in env:
-    libldpc = cdll.LoadLibrary(dir + '/../lib/win32/libldpc.so')
-elif 'Linux' in env:
-    libldpc = cdll.LoadLibrary(dir + '/../lib/linux/libldpc.so')
-elif 'macOS' in env and 'x86_64' in env:
-    libldpc = cdll.LoadLibrary(dir + '/../lib/darwin_x86/libldpc.dylib')
-elif 'macOS' in env and 'arm'    in env:
-    libldpc = cdll.LoadLibrary(dir + '/../lib/darwin_arm/libldpc.dylib')
-else:
+try:
+    if 'Windows' in env:
+        libldpc = cdll.LoadLibrary(dir + '/../lib/win32/libldpc.so')
+    elif 'Linux' in env:
+        libldpc = cdll.LoadLibrary(dir + '/../lib/linux/libldpc.so')
+    elif 'macOS' in env and 'x86_64' in env:
+        libldpc = cdll.LoadLibrary(dir + '/../lib/darwin_x86/libldpc.dylib')
+    elif 'macOS' in env and 'arm'    in env:
+        libldpc = cdll.LoadLibrary(dir + '/../lib/darwin_arm/libldpc.dylib')
+    else:
+        raise
+except:
     print('load libldpc.so error (%s)' % (env))
     exit()
 

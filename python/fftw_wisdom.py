@@ -15,15 +15,18 @@ from ctypes import *
 # load external library --------------------------------------------------------
 dir = os.path.dirname(__file__)
 env = platform.platform()
-if 'Windows' in env:
-    libsdr = cdll.LoadLibrary(dir + '/../lib/win32/libsdr.so')
-elif 'Linux' in env:
-    libsdr = cdll.LoadLibrary(dir + '/../lib/linux/libsdr.so')
-elif 'macOS' in env and 'x86_64' in env:
-    libsdr = cdll.LoadLibrary(dir + '/../lib/darwin_x86/libsdr.dylib')
-elif 'macOS' in env and 'arm'    in env:
-    libsdr = cdll.LoadLibrary(dir + '/../lib/darwin_arm/libsdr.dylib')
-else:
+try:
+    if 'Windows' in env:
+        libsdr = cdll.LoadLibrary(dir + '/../lib/win32/libsdr.so')
+    elif 'Linux' in env:
+        libsdr = cdll.LoadLibrary(dir + '/../lib/linux/libsdr.so')
+    elif 'macOS' in env and 'x86_64' in env:
+        libsdr = cdll.LoadLibrary(dir + '/../lib/darwin_x86/libsdr.dylib')
+    elif 'macOS' in env and 'arm'    in env:
+        libsdr = cdll.LoadLibrary(dir + '/../lib/darwin_arm/libsdr.dylib')
+    else:
+        raise
+except:
     print('load libsdr.so error (%s)' % (env))
     exit()
 

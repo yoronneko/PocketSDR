@@ -249,6 +249,7 @@ if __name__ == '__main__':
     rect3 = [0, -0.05, 1, 1.25]
     file = ''
     label = 'PRN'
+    sdrfmt = 'pocketsdr'
     
     i = 1
     while i < len(sys.argv):
@@ -289,6 +290,9 @@ if __name__ == '__main__':
             show_usage()
             show_sigid()
             exit()
+        elif sys.argv[i] == '-sdrfmt':
+            i += 1
+            sdrfmt = sys.argv[i]
         elif sys.argv[i][0] == '-':
             show_usage()
             exit()
@@ -314,7 +318,8 @@ if __name__ == '__main__':
     
     try:
         # read IF data
-        data = sdr_func.read_data(file, fs, 1 if fi > 0 else 2, T + Tcode, toff)
+        #data = sdr_func.read_data(file, fs, 1 if fi > 0 else 2, T + Tcode, toff)
+        data = sdr_func.read_data(file, fs, 1 if fi > 0 else 2, T + Tcode, toff, sdrfmt)
         
         if not opt[3]:
             fig = plt.figure(window, figsize=size)

@@ -11,23 +11,9 @@ CC  = gcc
 SRC = ../LDPC-codes
 
 ifeq ($(OS),Windows_NT)
-	INSTALL = ../win32
-	TARGET = libldpc.so libldpc.a
-	OPTSH = -shared
+    INSTALL = ../win32
 else
-	ifeq ($(shell uname -s),Linux)
-		INSTALL = ../linux
-		TARGET = libldpc.so libldpc.a
-		OPTSH = -shared
-	else ifeq ($(shell uname -s),Darwin)
-		ifeq ($(shell uname -m),x86_64)
-			INSTALL = ../darwin_x86
-		else ifeq ($(shell uname -m),arm64)
-			INSTALL = ../darwin_arm
-		endif
-		TARGET = libldpc.dylib
-		OPTSH = -dynamiclib
-	endif
+    INSTALL = ../linux
 endif
 
 INCLUDE = -I$(SRC)
@@ -38,10 +24,24 @@ OBJ = rcode.o channel.o dec.o enc.o alloc.o intio.o blockio.o \
       check.o open.o mod2dense.o mod2sparse.o mod2convert.o \
       distrib.o rand.o
 
-$(TARGET) : $(OBJ)
-	$(CC) $(OPTSH) -o $@ $(OBJ)
+TARGET = libldpc.so libldpc.a
 
 all: $(TARGET)
+
+ifeq ($(shell uname -s),Darwin)
+	ifeq ($(shell uname -m),x86_64)
+		INSTALL = ../darwin_x86
+	else ifeq ($(shell uname -m),arm64)
+		INSTALL = ../darwin_arm
+	endif
+	TARGET = libldpc.dylib
+	OPTSH = -dynamiclib
+else
+	OPTSH =
+endif
+
+$(TARGET) : $(OBJ)
+	$(CC) $(OPTSH) -o $@ $(OBJ)
 
 libldpc.so : $(OBJ)
 	$(CC) -shared -o $@ $(OBJ)

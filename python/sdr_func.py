@@ -78,6 +78,34 @@ def read_data(file, fs, IQ, T, toff=0.0):
     else: # IQ-sampling
         return np.array(raw[0::2] - raw[1::2] * 1j, dtype='complex64')
 
+def read_data(file, fs, IQ, T, toff, sdrfmt):
+    if sdrfmt == 'pocketsdr':  # Pocket SDR
+        # data type, data size, divisor of data, and Q-sign
+        dt, ds, div, qsgn = 'int8', 1, 1, -1
+    elif sdr == 'sc16':  # signed complex, 16 bit
+        dt, ds, div, qsgn = 'int16', 2, 256, +1
+    elif sdr == 'sc8':  # signed complex, 8 bit
+        dt, ds, div, qsgn = 'int8', 2, 1, +1
+    else:
+        raise ValueError(f'Unknown SDR format: {sdrfmt}.')
+
+    off = int(fs * toff * IQ * ds)
+    cnt = int(fs * T * IQ) if T > 0.0 else -1 # all if T=0.0
+    
+    f = open(file, 'rb')
+    f.seek(off, os.SEEK_SET)
+    raw = np.fromfile(f, dtype=dt, count=cnt)
+    f.close()
+    
+    if len(raw) < cnt:
+        return np.array([], dtype='complex64')
+    elif IQ == 1: # I-sampling
+        return np.array(raw / div, dtype='complex64')
+    else: # IQ-sampling
+        return np.array(
+            raw[0::2] / div +
+            raw[1::2] / div * 1j * qsgn, dtype='complex64')
+
 #-------------------------------------------------------------------------------
 #  Parallel code search in digitized IF data.
 #
