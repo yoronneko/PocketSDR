@@ -317,6 +317,7 @@ if __name__ == '__main__':
     file, nfile, ofile = '', '', ''
     fp = sys.stdout
     ssys = SYS_GPS
+    sdrfmt = 'pocketsdr'
     
     i = 1
     while i < len(sys.argv):
@@ -355,6 +356,9 @@ if __name__ == '__main__':
             ofile = sys.argv[i]
         elif sys.argv[i] == '-v':
             VERP = 1
+        elif sys.argv[i] == '-sdrfmt':
+            i += 1
+            sdrfmt = sys.argv[i]
         elif sys.argv[i][0] == '-':
             show_usage()
         else:
@@ -385,7 +389,8 @@ if __name__ == '__main__':
         
         # read DIF data
         IQ = 1 if fi > 0 else 2
-        dif = sdr_func.read_data(file, fs, IQ, tint, toff + ti * i)
+        #dif = sdr_func.read_data(file, fs, IQ, tint, toff + ti * i)
+        dif = sdr_func.read_data(file, fs, IQ, tint, toff + ti * i, sdrfmt)
         if len(dif) == 0:
             break
         

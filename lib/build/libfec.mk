@@ -8,23 +8,24 @@
 #! specify directory of LIBFEC source tree
 SRC = ../libfec
 
-CONFOPT =
 ifeq ($(OS),Windows_NT)
-	INSTALL = ../win32
-	TARGET = libfec.so libfec.a
+    INSTALL = ../win32
 else
-	ifeq ($(shell uname -s),Linux)
-		INSTALL = ../linux
-		TARGET = libfec.so libfec.a
-	else ifeq ($(shell uname -s),Darwin)
-		ifeq ($(shell uname -m),x86_64)
-			INSTALL = ../darwin_x86
-			CONFOPT = --target=x86-apple-darwin --build=x86-apple-darwin
-		else ifeq ($(shell uname -m),arm64)
-			INSTALL = ../darwin_arm
-		endif
-		TARGET = libfec.dylib
+    INSTALL = ../linux
+endif
+
+TARGET = libfec.so libfec.a
+
+ifeq ($(shell uname -s),Darwin)
+	ifeq ($(shell uname -m),x86_64)
+		INSTALL = ../darwin_x86
+		CONFOPT = --target=x86-apple-darwin --build=x86-apple-darwin
+	else ifeq ($(shell uname -m),arm64)
+		INSTALL = ../darwin_arm
 	endif
+	TARGET = libfec.dylib
+else
+	CONFOPT =
 endif
 
 all :

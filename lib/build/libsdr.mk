@@ -8,39 +8,16 @@
 
 CC  = gcc
 SRC = ../../src
-<<<<<<< HEAD
-OPTIONS =
-INCLUDE = -I$(SRC)
-LDLIBS = -lfftw3f
 
 ifeq ($(OS),Windows_NT)
-	INSTALL = ../win32
-	EXTSH = so
-	OPTSH = -shared
-	OPTIONS += -march=native
-	#! comment out for older CPU without AVX2
-	OPTIONS += -DAVX2
+    INSTALL = ../win32
+    OPTIONS = -DWIN32 -DAVX2
+    LDLIBS = ./librtk.so -lfftw3f -lwinmm
 else
-	ifeq ($(shell uname -s),Linux)
-		INSTALL = ../linux
-		EXTSH = so
-		OPTSH = -shared
-		OPTIONS += -march=native
-		#! comment out for older CPU without AVX2
-		OPTIONS += -DAVX2
-	else ifeq ($(shell uname -s),Darwin)
-		ifeq ($(shell uname -m),x86_64)
-			INSTALL = ../darwin_x86
-		else ifeq ($(shell uname -m),arm64)
-			INSTALL = ../darwin_arm
-			INCLUDE += -I/opt/homebrew/Cellar/fftw/3.3.10/include
-			INCLUDE += -I/opt/homebrew/Cellar/libusb/1.0.25/include
-			LDLIBS  += -L/opt/homebrew/Cellar/fftw/3.3.10/lib
-			LDLIBS  += -L/opt/homebrew/Cellar/libusb/1.0.25/lib
-		endif
-		EXTSH = dylib
-		OPTSH = -dynamiclib
-	endif
+    INSTALL = ../linux
+    OPTIONS = -DAVX2
+    #LDLIBS = ./librtk.so -lfftw3f
+    LDLIBS = ./librtk.a -lfftw3f
 endif
 
 INCLUDE = -I$(SRC) -I../RTKLIB/src
@@ -49,12 +26,30 @@ CFLAGS = -Ofast -mavx2 -mfma $(INCLUDE) $(OPTIONS) -Wall -fPIC -g
 
 OBJ = sdr_cmn.o sdr_func.o sdr_code.o sdr_code_gal.o
 
-TARGET = libsdr.$(EXTSH)
+TARGET = libsdr.so
+
+ifeq ($(shell uname -s),Darwin)
+	LDLIBS = ./librtk.dylib
+	OPTSH = -dynamiclib
+	TARGET = libsdr.dylib
+	ifeq ($(shell uname -m),x86_64)
+		INSTALL = ../darwin_x86
+	else ifeq ($(shell uname -m),arm64)
+		INSTALL = ../darwin_arm
+		INCLUDE += -I/opt/homebrew/Cellar/fftw/3.3.10/include
+		INCLUDE += -I/opt/homebrew/Cellar/libusb/1.0.25/include
+		LDLIBS  += -L/opt/homebrew/Cellar/fftw/3.3.10/lib
+		LDLIBS  += -L/opt/homebrew/Cellar/libusb/1.0.25/lib
+	endif
+endif
 
 $(TARGET) : $(OBJ)
 	$(CC) $(OPTSH) -o $@ $(OBJ) $(LDLIBS)
 
 all : $(TARGET)
+
+libsdr.so: $(OBJ)
+	$(CC) -shared -o $@ $(OBJ) $(LDLIBS)
 
 sdr_cmn.o : $(SRC)/sdr_cmn.c
 	$(CC) -c $(CFLAGS) $(SRC)/sdr_cmn.c

@@ -10,28 +10,14 @@ CC = gcc
 #! specify directory of RTKLIB source tree
 SRC = ../RTKLIB/src
 
-OPTIONS= -DENAGLO -DENAGAL -DENAQZS -DENACMP -DENAIRN -DNFREQ=5 -DEXOBS=3 -DSVR_REUSEADDR -DTRACE
-LDLIBS =
 ifeq ($(OS),Windows_NT)
-	INSTALL = ../win32
-	TARGET = librtk.so librtk.a
-	OPTSH = -shared
-	OPTIONS += -DWIN32
-	LDLIBS += -lwsock32 -lwinmm
+    INSTALL = ../win32
+    OPTIONS= -DENAGLO -DENAGAL -DENAQZS -DENACMP -DENAIRN -DNFREQ=5 -DEXOBS=3 -DSVR_REUSEADDR -DTRACE -DWIN32
+    LDLIBS = -lwsock32 -lwinmm
 else
-	ifeq ($(shell uname -s),Linux)
-		INSTALL = ../linux
-		TARGET = librtk.so librtk.a
-		OPTSH = -shared
-	else ifeq ($(shell uname -s),Darwin)
-		ifeq ($(shell uname -m),x86_64)
-			INSTALL = ../darwin_x86
-		else ifeq ($(shell uname -m),arm64)
-			INSTALL = ../darwin_arm
-		endif
-		TARGET = librtk.dylib
-		OPTSH = -dynamiclib
-	endif
+    INSTALL = ../linux
+    OPTIONS= -DENAGLO -DENAGAL -DENAQZS -DENACMP -DENAIRN -DNFREQ=5 -DEXOBS=3 -DSVR_REUSEADDR -DTRACE
+    LDLIBS =
 endif
 
 INCLUDE= -I$(SRC)
@@ -45,6 +31,20 @@ OBJ = rtkcmn.o tides.o rtksvr.o rtkpos.o postpos.o geoid.o solution.o lambda.o s
       convgpx.o streamsvr.o tle.o gis.o datum.o download.o \
       novatel.o ublox.o ss2.o crescent.o skytraq.o javad.o nvs.o binex.o rt17.o septentrio.o \
       rtklib_wrap.o
+
+TARGET = librtk.so librtk.a
+
+ifeq ($(shell uname -s),Darwin)
+	ifeq ($(shell uname -m),x86_64)
+		INSTALL = ../darwin_x86
+	else ifeq ($(shell uname -m),arm64)
+		INSTALL = ../darwin_arm
+	endif
+	TARGET = librtk.dylib
+	OPTSH = -dynamiclib
+else
+	OPTSH =
+endif
 
 $(TARGET) : $(OBJ)
 	$(CC) $(OPTSH) -o $@ $(OBJ) $(LDLIBS)
