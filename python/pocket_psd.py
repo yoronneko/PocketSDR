@@ -185,7 +185,7 @@ if __name__ == '__main__':
     try:
         for i in range(0, 10000000):
             #data = sdr_func.read_data(file, fs, IQ, tint, toff=tint * i)
-            data = sdr_func.read_data(file, fs, IQ, tint, toff=tint * i, sdrfmt)
+            data = sdr_func.read_data(file, fs, IQ, tint, toff=tint * i, sdrfmt=sdrfmt)
             
             if plt.figure(window) != fig: # window closed
                 exit()

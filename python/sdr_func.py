@@ -79,32 +79,64 @@ def read_data(file, fs, IQ, T, toff=0.0):
         return np.array(raw[0::2] - raw[1::2] * 1j, dtype='complex64')
 
 def read_data(file, fs, IQ, T, toff, sdrfmt):
-    if sdrfmt == 'pocketsdr':  # Pocket SDR
-        # data type, data size, divisor of data, and Q-sign
-        dt, ds, div, qsgn = 'int8', 1, 1, -1
-    elif sdr == 'sc16':  # signed complex, 16 bit
-        dt, ds, div, qsgn = 'int16', 2, 256, +1
-    elif sdr == 'sc8':  # signed complex, 8 bit
-        dt, ds, div, qsgn = 'int8', 2, 1, +1
+    if sdrfmt == 'pocketsdr':  # Pocket SDR, 8 bit integer
+        # data type, data size, bit width, divisor of data value
+        dt, div, bw = 'int8', 1, 1
+    elif sdrfmt in {'sc16', 'sc16q11'}:  # signed complex value, 16 bit integer little-endian
+        dt, div, bw, IQ = '<i2', 256, 2, 2
+    elif sdrfmt == 'sc8':  # signed complex value, 8 bit integer
+        dt, div, bw, IQ = 'int8',  4, 1, 2
+    elif sdrfmt == 's16':  # signed real value, 16 bit integer little-endian
+        dt, div, bw, IQ = '<i2', 256, 2, 1
+    elif sdrfmt == 's8':  # signed real value, 8 bit integer
+        dt, div, bw, IQ = 'int8',  4, 1, 1
     else:
-        raise ValueError(f'Unknown SDR format: {sdrfmt}.')
+        raise ValueError(f'Unknown data format: {sdrfmt}.')
 
-    off = int(fs * toff * IQ * ds)
+    off = int(fs * toff * IQ * bw)
     cnt = int(fs * T * IQ) if T > 0.0 else -1 # all if T=0.0
     
-    f = open(file, 'rb')
-    f.seek(off, os.SEEK_SET)
-    raw = np.fromfile(f, dtype=dt, count=cnt)
-    f.close()
-    
-    if len(raw) < cnt:
-        return np.array([], dtype='complex64')
-    elif IQ == 1: # I-sampling
-        return np.array(raw / div, dtype='complex64')
-    else: # IQ-sampling
+    with open(file, 'rb') as f:
+        f.seek(off, os.SEEK_SET)
+        raw = np.fromfile(f, dtype=dt, count=cnt)
+
+# various SDR formats such as sc16 are described in:
+# USRP Hardware Driver and USRP Manual, Over-the-wire Data Format Specification
+# https://files.ettus.com/manual/page_configuration.html#config_stream_args_otw_format
+# bladeRF sc16q11 format reverses the order of I and Q from sc16.
+# https://github.com/Nuand/bladeRF/blob/master/host/misc/matlab/load_sc16q11.m
+    if len(raw) < cnt / bw:
+        return np.array([], dtype='complex64') / div
+    if sdrfmt == 'pocketsdr' and IQ == 1: # I-sampling
+        return np.array(raw, dtype='complex64') / div
+    elif sdrfmt == 'pocketsdr' and IQ == 2: # IQ-sampling
         return np.array(
-            raw[0::2] / div +
-            raw[1::2] / div * 1j * qsgn, dtype='complex64')
+            raw[0::2] - raw[1::2] * 1j, dtype='complex64') / div
+    elif sdrfmt == 'sc16':
+        return np.array(raw[1::2] + raw[0::2] * 1j, dtype='complex64') / div
+    elif sdrfmt == 'sc16q11':
+        return np.array(raw[0::2] + raw[1::2] * 1j, dtype='complex64') / div
+    elif sdrfmt == 'sc8':
+        sc8c = np.zeros(len(raw)//2, dtype='complex64')
+        sc8cq = raw[0::2]
+        sc8ci = raw[1::2]
+        sc8c[1::2] = sc8ci[0::2] + sc8cq[0::2] * 1j
+        sc8c[0::2] = sc8ci[1::2] + sc8cq[1::2] * 1j
+        return sc8c / div
+    elif sdrfmt == 's16':
+        s16c = np.zeros(len(raw), dtype='complex64')
+        s16c[1::2] = raw[0::2]
+        s16c[0::2] = raw[1::2]
+        return s16c / div
+    elif sdrfmt == 's8':
+        s8c = np.zeros(len(raw), dtype='complex64')
+        s8c[0::4] = raw[3::4]
+        s8c[1::4] = raw[2::4]
+        s8c[2::4] = raw[1::4]
+        s8c[3::4] = raw[0::4]
+        return s8c / div
+    else:
+        raise ValueError(f'Unknown data format: {sdrfmt}.')
 
 #-------------------------------------------------------------------------------
 #  Parallel code search in digitized IF data.

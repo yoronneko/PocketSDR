@@ -70,29 +70,58 @@ def read_data(fp, N, IQ, buff, ix):
     return True
 
 def read_data(fp, N, IQ, buff, ix, sdrfmt):
-    if sdrfmt == 'pocketsdr':  # Pocket SDR
-        # data type, data size, divisor of data, and Q-sign
-        dt, ds, div, qsgn = 'int8', 1, 1, -1
-    elif sdr == 'sc16':  # signed complex, 16 bit
-        dt, ds, div, qsgn = 'int16', 2, 256, +1
-    elif sdr == 'sc8':  # signed complex, 8 bit
-        dt, ds, div, qsgn = 'int8', 1, 1, +1
+    if sdrfmt == 'pocketsdr':  # Pocket SDR, 8 bit integer
+        # data type, divisor of data value, bit width
+        dt, div, bw = 'int8', 1, 1
+    elif sdrfmt in {'sc16', 'sc16q11'}:  # signed complex value, 16 bit integer little-endian
+        dt, div, bw, IQ = '<i2', 256, 2, 2
+    elif sdrfmt == 'sc8':  # signed complex value, 8 bit integer
+        dt, div, bw, IQ = 'int8',  4, 1, 2
+    elif sdrfmt == 's16':  # signed real value, 16 bit integer little-endian
+        dt, div, bw, IQ = '<i2', 256, 2, 1
+    elif sdrfmt == 's8':  # signed real value, 8 bit integer
+        dt, div, bw, IQ = 'int8',  4, 1, 1
     else:
-        raise ValueError(f'Unknown SDR format: {sdrfmt}.')
-
+        raise ValueError(f'Unknown data format: {sdrfmt}.')
+# various SDR formats such as sc16 are described in:
+# USRP Hardware Driver and USRP Manual, Over-the-wire Data Format Specification
+# https://files.ettus.com/manual/page_configuration.html#config_stream_args_otw_format
+# bladeRF sc16q11 format reverses the order of I and Q from sc16.
+# https://github.com/Nuand/bladeRF/blob/master/host/misc/matlab/load_sc16q11.m
     if fp == None:
-        raw = np.frombuffer(sys.stdin.buffer.read(N * IQ * ds), dtype=dt)
-    else:
-        raw = np.frombuffer(fp.read(N * IQ * ds), dtype=dt)
+        fp = sys.stdin.buffer
+    raw = np.frombuffer(fp.read(N * IQ * bw), dtype=dt)
 
-    if len(raw) < N * IQ:
+    if len(raw) < N * IQ / bw:
         return False
-    elif IQ == 1: # I
-        buff[ix:ix+N] = np.array(raw / div, dtype='complex64')
-    else: # IQ
-        buff[ix:ix+N] = np.array(
-            raw[0::2] / div +
-            raw[1::2] / div * 1j * qsgn, dtype='complex64')
+    elif sdrfmt == 'pocketsdr' and IQ == 1: # I
+        buff[ix:ix+N] = np.array(raw, dtype='complex64') / div
+    elif sdrfmt == 'pocketsdr' and IQ == 2: # IQ
+        buff[ix:ix+N] = np.array(raw[0::2] - raw[1::2] * 1j,
+            dtype='complex64') / div
+    elif sdrfmt == 'sc16':
+        buff[ix:ix+N] = np.array(raw[1::2] + raw[0::2] * 1j,
+            dtype='complex64') / div
+    elif sdrfmt == 'sc16q11':
+        buff[ix:ix+N] = np.array(raw[0::2] + raw[1::2] * 1j,
+            dtype='complex64') / div
+    elif sdrfmt == 'sc8':
+        sc8cq = raw[0::2]
+        sc8ci = raw[1::2]
+        buff[ix+1:ix+N:2] = np.array(
+            sc8ci[0::2] + sc8cq[0::2] * 1j, dtype='coplex64') / div
+        buff[ix+0:ix+N:2] = np.array(
+            sc8ci[1::2] + sc8cq[1::2] * 1j, dtype='coplex64') / div
+    elif sdrfmt == 's16':
+        buff[ix+1:ix+N:2] = np.array(raw[0::2], dtype='complex64') / div
+        buff[ix+0:ix+N:2] = np.array(raw[1::2], dtype='complex64') / div
+    elif sdrfmt == 's8':
+        buff[ix+0:ix+N:4] = np.array(raw[3::4], dtype='complex64') / div
+        buff[ix+1:ix+N:4] = np.array(raw[2::4], dtype='complex64') / div
+        buff[ix+2:ix+N:4] = np.array(raw[1::4], dtype='complex64') / div
+        buff[ix+3:ix+N:4] = np.array(raw[0::4], dtype='complex64') / div
+    else:
+        raise ValueError(f'Unknown data format: {sdrfmt}.')
     return True
 
 # print receiver channel status header -----------------------------------------
