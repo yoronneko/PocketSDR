@@ -92,7 +92,7 @@ def read_data(fp, N, IQ, buff, ix, sdrfmt):
         fp = sys.stdin.buffer
     raw = np.frombuffer(fp.read(N * IQ * bw), dtype=dt)
 
-    if len(raw) < N * IQ / bw:
+    if len(raw) < N * IQ:
         return False
     elif sdrfmt == 'pocketsdr' and IQ == 1: # I
         buff[ix:ix+N] = np.array(raw, dtype='complex64') / div
