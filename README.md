@@ -1,3 +1,20 @@
+# Modifications from the orinal by yoronneko
+
+1. .gitignore added.
+1. For use with Apple macintosh OS (darwin), files to compile the required
+libraries for forward error correction (libfec), low density parity check
+(libldpc), and RTKLIB the famous GNSS library (librtk) were modified. 
+1. Pre-compiled libraries for Apple macintosh OS were added.
+1. For the python applications, SDR capture files other than Pocket SDR
+hardware can be used by providing an option of ``-sdrfmt`` and the format
+(for example, ``-sdrfmt sc16q11``). The possible SDR format are:
+- pocketsdr (default, for Pocket SDR)
+- sc16q11 (signed complex value, 16 bit integer little-endian, real-part first, for bladeRF)
+- sc16 (signed complex value, 16 bit integer little-endian, imaginary-part first, for USRP)
+- sc8 (signed complex value, 8 bit integer, permutations applied for 64 bit CPUs, for USRP)
+- s16 (signed real value, 16 bit integer little-endian, for USRP)
+- s8 (signed real value, 8 bit integer, for USRP)
+
 # **Pocket SDR - An Open-Source GNSS SDR, ver. 0.8**
 
 ## **Overview**
