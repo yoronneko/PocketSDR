@@ -26,8 +26,6 @@ OBJ = rcode.o channel.o dec.o enc.o alloc.o intio.o blockio.o \
 
 TARGET = libldpc.so libldpc.a
 
-all: $(TARGET)
-
 ifeq ($(shell uname -s),Darwin)
 	ifeq ($(shell uname -m),x86_64)
 		INSTALL = ../darwin_x86
@@ -39,6 +37,8 @@ ifeq ($(shell uname -s),Darwin)
 else
 	OPTSH =
 endif
+
+all: $(TARGET)
 
 $(TARGET) : $(OBJ)
 	$(CC) $(OPTSH) -o $@ $(OBJ)

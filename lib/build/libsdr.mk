@@ -32,14 +32,22 @@ ifeq ($(shell uname -s),Darwin)
 	LDLIBS = ./librtk.dylib
 	OPTSH = -dynamiclib
 	TARGET = libsdr.dylib
+	LDLIBS += ./librtk.dylib -lfftw3f
 	ifeq ($(shell uname -m),x86_64)
 		INSTALL = ../darwin_x86
+		INCLUDE += -I/usr/local/Cellar/fftw/3.3.10_1/include
+		INCLUDE += -I/usr/local/Cellar/libusb/1.0.26/include
+		LDLIBS  += -L/usr/local/Cellar/fftw/3.3.10_1/lib
+		LDLIBS  += -L/usr/local/Cellar/libusb/1.0.26/lib
 	else ifeq ($(shell uname -m),arm64)
 		INSTALL = ../darwin_arm
-		INCLUDE += -I/opt/homebrew/Cellar/fftw/3.3.10/include
-		INCLUDE += -I/opt/homebrew/Cellar/libusb/1.0.25/include
-		LDLIBS  += -L/opt/homebrew/Cellar/fftw/3.3.10/lib
-		LDLIBS  += -L/opt/homebrew/Cellar/libusb/1.0.25/lib
+		INCLUDE += -I/opt/homebrew/Cellar/fftw/3.3.10_1/include
+		INCLUDE += -I/opt/homebrew/Cellar/libusb/1.0.26/include
+		LDLIBS  += -L/opt/homebrew/Cellar/fftw/3.3.10_1/lib
+		LDLIBS  += -L/opt/homebrew/Cellar/libusb/1.0.26/lib
+		OPTIONS =
+		# clear AVX2 definition
+		CFLAGS = -Ofast $(INCLUDE) $(OPTIONS) -Wall -fPIC -g
 	endif
 endif
 
