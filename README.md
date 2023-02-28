@@ -1,4 +1,4 @@
-# Modifications from the orinal by yoronneko
+# Modifications from the original by yoronneko
 
 1. .gitignore added.
 1. For use with Apple macintosh OS (darwin), files to compile the required
