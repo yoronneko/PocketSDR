@@ -42,12 +42,12 @@ def sdr_sec_code(sig, prn):
 # sdr_res_code() by libsdr -----------------------------------------------------
 def sdr_res_code(code, T, coff, fs, N, Nz):
     code = np.array(code, dtype='int8')
-    code_res = np.zeros(N + Nz, dtype='complex64')
+    code_res = np.zeros(N + Nz, dtype='float32')
     libsdr.sdr_res_code.argtypes = [
         ctypeslib.ndpointer('int8'), c_int32, c_double, c_double, c_double,
-        c_int32, c_int32, ctypeslib.ndpointer('complex64')]
+        c_int32, c_int32, ctypeslib.ndpointer('float32')]
     libsdr.sdr_res_code(code, len(code), T, coff, fs, N, Nz, code_res)
-    return code_res
+    return np.array(code_res, dtype='complex64')
 
 # sdr_gen_code_fft() by libsdr -------------------------------------------------
 def sdr_gen_code_fft(code, T, coff, fs, N, Nz):
@@ -160,6 +160,14 @@ def test_01():
     
     err = 0
     for prn in range(184, 190):
+        code = sdr_gen_code('L5SIV', prn)
+        code_ref = sdr_code.gen_code('L5SIV', prn)
+        if not np.all(code == code_ref):
+            err = 1
+    print('sdr_gen_code() L5SIV: %s' % ('NG' if err else 'OK'))
+    
+    err = 0
+    for prn in range(184, 190):
         code = sdr_gen_code('L5SQ', prn)
         code_ref = sdr_code.gen_code('L5SQ', prn)
         if not np.all(code == code_ref):
@@ -200,11 +208,27 @@ def test_01():
     
     err = 0
     for prn in range(0, 64):
-        code = sdr_gen_code('G3OCD', 1)
-        code_ref = sdr_code.gen_code('G3OCD', 1)
+        code = sdr_gen_code('G1OCD', 1)
+        code_ref = sdr_code.gen_code('G1OCD', 1)
         if not np.all(code == code_ref):
             err = 1
-    print('sdr_gen_code() G3OCD: %s' % ('NG' if err else 'OK'))
+    print('sdr_gen_code() G1OCD: %s' % ('NG' if err else 'OK'))
+    
+    err = 0
+    for prn in range(0, 64):
+        code = sdr_gen_code('G1OCP', 1)
+        code_ref = sdr_code.gen_code('G1OCP', 1)
+        if not np.all(code == code_ref):
+            err = 1
+    print('sdr_gen_code() G1OCP: %s' % ('NG' if err else 'OK'))
+    
+    err = 0
+    for prn in range(0, 64):
+        code = sdr_gen_code('G2OCP', 1)
+        code_ref = sdr_code.gen_code('G2OCP', 1)
+        if not np.all(code == code_ref):
+            err = 1
+    print('sdr_gen_code() G2OCP: %s' % ('NG' if err else 'OK'))
     
     err = 0
     for prn in range(0, 64):
@@ -344,6 +368,22 @@ def test_01():
     
     err = 0
     for prn in range(1, 15):
+        code = sdr_gen_code('I1SD', prn)
+        code_ref = sdr_code.gen_code('I1SD', prn)
+        if not np.all(code == code_ref):
+            err = 1
+    print('sdr_gen_code() I1SD : %s' % ('NG' if err else 'OK'))
+    
+    err = 0
+    for prn in range(1, 15):
+        code = sdr_gen_code('I1SP', prn)
+        code_ref = sdr_code.gen_code('I1SP', prn)
+        if not np.all(code == code_ref):
+            err = 1
+    print('sdr_gen_code() I1SP : %s' % ('NG' if err else 'OK'))
+    
+    err = 0
+    for prn in range(1, 15):
         code = sdr_gen_code('I5S', prn)
         code_ref = sdr_code.gen_code('I5S', prn)
         if not np.all(code == code_ref):
@@ -388,11 +428,27 @@ def test_02():
     
     err = 0
     for prn in range(184, 190):
+        code = sdr_sec_code('L5SIV', prn)
+        code_ref = sdr_code.sec_code('L5SIV', prn)
+        if not np.all(code == code_ref):
+            err = 1
+    print('sdr_sec_code() L5SIV: %s' % ('NG' if err else 'OK'))
+    
+    err = 0
+    for prn in range(184, 190):
         code = sdr_sec_code('L5SQ', prn)
         code_ref = sdr_code.sec_code('L5SQ', prn)
         if not np.all(code == code_ref):
             err = 1
     print('sdr_sec_code() L5SI : %s' % ('NG' if err else 'OK'))
+    
+    err = 0
+    for prn in range(184, 190):
+        code = sdr_sec_code('L5SQV', prn)
+        code_ref = sdr_code.sec_code('L5SQV', prn)
+        if not np.all(code == code_ref):
+            err = 1
+    print('sdr_sec_code() L5SQV: %s' % ('NG' if err else 'OK'))
     
     err = 0
     for prn in range(-7, 7):
@@ -411,7 +467,29 @@ def test_02():
     print('sdr_sec_code() G2CA : %s' % ('NG' if err else 'OK'))
     
     err = 0
-    for prn in range(0, 63):
+    for prn in range(0, 64):
+        code = sdr_sec_code('G1OCD', prn)
+        code_ref = sdr_code.sec_code('G1OCD', prn)
+        if not np.all(code == code_ref):
+            err = 1
+    print('sdr_sec_code() G1OCD: %s' % ('NG' if err else 'OK'))
+    
+    err = 0
+    for prn in range(0, 64):
+        code = sdr_sec_code('G2OCP', prn)
+        code_ref = sdr_code.sec_code('G2OCP', prn)
+        if not np.all(code == code_ref):
+            err = 1
+    print('sdr_sec_code() G2OCP: %s' % ('NG' if err else 'OK'))
+    
+    err = 0
+    for prn in range(0, 64):
+        code = sdr_sec_code('G1OCP', prn)
+        code_ref = sdr_code.sec_code('G1OCP', prn)
+        if not np.all(code == code_ref):
+            err = 1
+    err = 0
+    for prn in range(0, 64):
         code = sdr_sec_code('G3OCD', prn)
         code_ref = sdr_code.sec_code('G3OCD', prn)
         if not np.all(code == code_ref):
@@ -521,6 +599,14 @@ def test_02():
         if not np.all(code == code_ref):
             err = 1
     print('sdr_sec_code() B3I  : %s' % ('NG' if err else 'OK'))
+    
+    err = 0
+    for prn in range(1, 15):
+        code = sdr_sec_code('I1SP', prn)
+        code_ref = sdr_code.sec_code('I1SP', prn)
+        if not np.all(code == code_ref):
+            err = 1
+    print('sdr_sec_code() I1SP : %s' % ('NG' if err else 'OK'))
 
 # sdr_res_code() -------------------------------------------------------------------
 def test_03():
