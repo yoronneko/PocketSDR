@@ -1,10 +1,7 @@
 # Modifications from the original by yoronneko
 
 1. .gitignore added.
-1. For use with Apple macintosh OS (darwin), files to compile the required
-libraries for forward error correction (libfec), low density parity check
-(libldpc), and RTKLIB the famous GNSS library (librtk) were modified. 
-1. Pre-compiled libraries for Apple macintosh OS were added.
+1. For use with macOS, pre-compiled libraries for forward error correction (libfec), low density parity check (libldpc), and RTKLIB the famous GNSS library (librtk) were added. 
 1. For the python applications, SDR capture files other than Pocket SDR
 hardware can be used by providing an option of ``-sdrfmt`` and the format
 (for example, ``-sdrfmt sc16q11``). The possible SDR format are:
@@ -49,6 +46,9 @@ for these signals and signal IDs used in the Pocket SDR APs, refer
 * **BeiDou**: B1I, B1C-D, B1C-P, B2a-D, B2a-P, B2I, B2b-I, B3I
 * **NavIC**: L1-SPS-D, L1-SPS-P, L5-SPS
 * **SBAS**: L1C/A, L5-I, L5-Q
+
+These APs are written in Python and C by very compact way. They are easily
+modified by users to add user's unique algorithms. 
 
 These APs are written in Python and C by very compact way. They are easily
 modified by users to add user's unique algorithms. 
