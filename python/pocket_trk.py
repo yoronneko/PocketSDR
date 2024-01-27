@@ -136,10 +136,10 @@ def print_head(ch):
             nch += 1
         if ch[i].state == 'SRCH':
             srch = i + 1
-    print('\r TIME(s):%10.2f%65sSRCH: %3d  LOCK:%3d/%3d' % (ch[0].time, '',
+    print('\r TIME(s):%10.2f%64sSRCH: %3d  LOCK:%3d/%3d' % (ch[0].time, '',
         srch, nch, len(ch)))
-    print('%3s %5s %3s %5s %8s %4s %-12s %11s %7s %11s %4s %5s %4s %4s %3s %3s' % (
-        'CH', 'SIG', 'PRN', 'STATE', 'LOCK(s)', 'C/N0', '(dB-Hz)', 'COFF(ms)',
+    print('%3s %4s %5s %3s %8s %4s %-12s %11s %7s %11s %4s %5s %4s %4s %3s %3s' % (
+        'CH', 'SAT', 'SIG', 'PRN', 'LOCK(s)', 'C/N0', '(dB-Hz)', 'COFF(ms)',
         'DOP(Hz)', 'ADR(cyc)', 'SYNC', '#NAV', '#ERR', '#LOL', 'NER', 'SEQ'))
 
 # receiver channel sync status -------------------------------------------------
@@ -150,21 +150,21 @@ def sync_stat(ch):
         ('R' if ch.nav.rev else '-'))
 
 # update receiver channel status -----------------------------------------------
-def update_stat(prns, ch, ncol):
-    for i in range(ncol):
+def update_stat(prns, ch, nrow):
+    for i in range(nrow):
         print('%s' % (ESC_UCUR), end='')
     n = 2
     print_head(ch)
     for i in range(len(prns)):
         if ch[i].state == 'LOCK' and ch[i].lock * ch[i].T >= MIN_LOCK:
-            print('%s%3d %5s %3d %5s %8.2f %4.1f %-13s%11.7f %7.1f %11.1f %s %5d %4d %4d %3d %3d%s' % (
-                ESC_COL, i + 1, ch[i].sig, prns[i], ch[i].state,
+            print('%s%3d %4s %5s %3d %8.2f %4.1f %-13s%11.7f %7.1f %11.1f %s %5d %4d %4d %3d %3d%s' % (
+                ESC_COL, i + 1, ch[i].sat, ch[i].sig, prns[i],
                 ch[i].lock * ch[i].T, ch[i].cn0, cn0_bar(ch[i].cn0),
                 ch[i].coff * 1e3, ch[i].fd, ch[i].adr, sync_stat(ch[i]),
                 ch[i].nav.count[0], ch[i].nav.count[1], ch[i].lost,
                 ch[i].nav.nerr, ch[i].nav.seq % 1000, ESC_RES))
             n += 1
-    for i in range(n, ncol):
+    for i in range(n, nrow):
         print('%107s' % (''))
         n += 1
     return n
@@ -596,7 +596,7 @@ if __name__ == '__main__':
     N = int(T * fs)
     buff = np.zeros(N * (MAX_BUFF + 1), dtype='complex64')
     ix = 0
-    ncol = 0
+    nrow = 0
     tt = time.time()
     log(3, '$LOG,%.3f,%s,%d,START FILE=%s FS=%.3f FI=%.3f IQ=%d TOFF=%.3f' %
         (0.0, '', 0, file, fs * 1e-6, fi * 1e-6, IQ, toff))
@@ -632,7 +632,7 @@ if __name__ == '__main__':
             
             # update receiver channel status
             if not quiet:
-                ncol = update_stat(prns, ch, ncol)
+                nrow = update_stat(prns, ch, nrow)
             
             # update plots
             if plot:

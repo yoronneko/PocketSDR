@@ -11,6 +11,8 @@
 //  2023-12-25  1.3  add -r option for raw SDR device data
 //  2023-12-28  1.4  set binary mode to stdin for Windows
 //  2024-01-12  1.5  update receiver status style
+//  2024-01-16  1.6  add -l option, delete -q option
+//  2024-01-25  1.7  add acquisition assist
 //
 #include <signal.h>
 #ifdef WIN32
@@ -23,9 +25,11 @@
 #define T_CYC      1e-3       // data read cycle (s)
 #define LOG_CYC    1000       // receiver channel log cycle (* T_CYC)
 #define TH_CYC     10         // receiver channel thread cycle (ms)
+#define T_REACQ    60.0       // re-acquisition timeout (s)
 #define MIN_LOCK   2.0        // min lock time to print channel status (s)
 #define MAX_BUFF   8000       // max number of IF data buffer
 #define MAX_DOP    5000.0     // default max Doppler for acquisition (Hz) 
+#define NCOL       106        // nummber of status columns
 
 #define ESC_COL    "\033[34m" // ANSI escape color blue
 #define ESC_RES    "\033[0m"  // ANSI escape reset
@@ -34,6 +38,8 @@
 #define ESC_HCUR   "\033[?25l" // ANSI escape hide cursor
 
 #define FFTW_WISDOM "../python/fftw_wisdom.txt"
+
+#define MIN(x, y)  ((x) < (y) ? x : y)
 
 // type definitions -------------------------------------------------------------
 struct rcv_tag;
@@ -57,6 +63,13 @@ typedef struct rcv_tag {      // receiver type
     int fmt, IQ[2];           // IF format (1:raw) and sampling types (1:I,2:IQ)
     int8_t *raw;              // input data buffer
 } rcv_t;
+
+// usage text ------------------------------------------------------------------
+static const char *usage_text[] = {
+    "Usage: pocket_trk [-sig sig -prn prn[,...] ...] [-r] [-toff toff] [-f freq]",
+    "       [-log path[,level]] [-nmea path[,tint]] [-rtcm path[,tint]] [-w file]",
+    "       [file]", NULL
+};
 
 // interrupt flag --------------------------------------------------------------
 static volatile uint8_t intr = 0;
@@ -102,33 +115,32 @@ static void print_head(rcv_t *rcv)
     for (int i = 0; i < rcv->nch; i++) {
         if (rcv->ch[i]->ch->state == STATE_LOCK) nch++;
     }
-    printf("\r TIME(s):%10.2f%53s%10s  SRCH:%4d  LOCK:%3d/%3d\n",
-        rcv->ix * T_CYC, "", buff_full(rcv) ? "BUFF-FULL" : "", rcv->ich + 1,
-        nch, rcv->nch);
-    printf("%3s %5s %3s %5s %8s %4s %-12s %11s %7s %11s %4s %5s %4s %4s %3s %3s\n",
-        "CH", "SIG", "PRN", "STATE", "LOCK(s)", "C/N0", "(dB-Hz)", "COFF(ms)",
+    printf("\r TIME(s):%10.2f%*s%10s  SRCH:%4d  LOCK:%3d/%3d\n",
+        rcv->ix * T_CYC, NCOL - 54, "", buff_full(rcv) ? "BUFF-FULL" : "",
+        rcv->ich + 1, nch, rcv->nch);
+    printf("%3s %4s %5s %3s %8s %4s %-12s %11s %7s %11s %4s %5s %4s %4s %3s %3s\n",
+        "CH", "SAT", "SIG", "PRN", "LOCK(s)", "C/N0", "(dB-Hz)", "COFF(ms)",
         "DOP(Hz)", "ADR(cyc)", "SYNC", "#NAV", "#ERR", "#LOL", "NER", "SEQ");
 }
 
 // print receiver channel status -----------------------------------------------
 static void print_ch_stat(sdr_ch_t *ch)
 {
-    static const char *state_str[] = {"", "IDLE", "SRCH", "LOCK"};
     char bar[16], stat[16];
     cn0_bar(ch->cn0, bar);
     sync_stat(ch, stat);
-    printf("%s%3d %5s %3d %5s %8.2f %4.1f %-13s%11.7f %7.1f %11.1f %s %5d %4d %4d %3d %3d%s\n",
-        ESC_COL, ch->no, ch->sig, ch->prn, state_str[ch->state],
-        ch->lock * ch->T, ch->cn0, bar, ch->coff * 1e3, ch->fd, ch->adr, stat,
-        ch->nav->count[0], ch->nav->count[1], ch->lost, ch->nav->nerr,
-        ch->nav->seq % 1000, ESC_RES);
+    printf("%s%3d %4s %5s %3d %8.2f %4.1f %-13s%11.7f %7.1f %11.1f %s %5d %4d %4d %3d %3d%s\n",
+        ESC_COL, ch->no, ch->sat, ch->sig, ch->prn, ch->lock * ch->T, ch->cn0,
+        bar, ch->coff * 1e3, ch->fd, ch->adr, stat, ch->nav->count[0],
+        ch->nav->count[1], ch->lost, ch->nav->nerr, ch->nav->seq % 1000,
+        ESC_RES);
 }
 
 // print receiver status -------------------------------------------------------
-static int rcv_print_stat(rcv_t *rcv, int ncol)
+static int rcv_print_stat(rcv_t *rcv, int nrow)
 {
     int n = 2;
-    for (int i = 0; i < ncol; i++) {
+    for (int i = 0; i < nrow; i++) {
         printf("%s", ESC_UCUR);
     }
     print_head(rcv);
@@ -138,8 +150,8 @@ static int rcv_print_stat(rcv_t *rcv, int ncol)
         print_ch_stat(ch);
         n++;
     }
-    for (int i = n; i < ncol; i++) {
-        printf("%*s\n", 107, "");
+    for (int i = n; i < nrow; i++) {
+        printf("%*s\n", NCOL, "");
         n++;
     }
     fflush(stdout);
@@ -166,9 +178,9 @@ static void out_log_ch(sdr_ch_t *ch)
 // show usage ------------------------------------------------------------------
 static void show_usage(void)
 {
-    printf("Usage: pocket_trk [-sig sig -prn prn[,...] ...] [-r] [-toff toff] [-f freq]\n");
-    printf("       [-fi freq[,freq]] [-d freq[,freq]] [-IQ|-IQI|-IIQ] [-ti tint]\n");
-    printf("       [-log path] [-w filg] [-q] [file]\n");
+    for (int i = 0; usage_text[i]; i++) {
+        printf("%s\n", usage_text[i]);
+    }
     exit(0);
 }
 
@@ -334,6 +346,29 @@ static int rcv_read_data(rcv_t *rcv, int64_t ix, FILE *fp)
     return 1;
 }
 
+// re-acquisition --------------------------------------------------------------
+static int re_acq(rcv_t *rcv, sdr_ch_t *ch)
+{
+    if (ch->lock * ch->T >= MIN_LOCK && rcv->ix * T_CYC - ch->time + T_REACQ) {
+        ch->acq->fd_ext = ch->fd;
+        return 1;
+    }
+    return 0;
+}
+
+// assisted-acquisition --------------------------------------------------------
+static int assist_acq(rcv_t *rcv, sdr_ch_t *ch)
+{
+    for (int i = 0; i < rcv->nch; i++) {
+        sdr_ch_t *ch_i = rcv->ch[i]->ch;
+        if (strcmp(ch->sat, ch_i->sat) || ch_i->state != STATE_LOCK ||
+            ch_i->lock * ch_i->T < 2.0) continue;
+        ch->acq->fd_ext = ch_i->fd * ch->fc / ch_i->fc;
+        return 1;
+    }
+    return 0;
+}
+
 // update signal search channel ------------------------------------------------
 static void rcv_update_srch(rcv_t *rcv)
 {
@@ -341,12 +376,18 @@ static void rcv_update_srch(rcv_t *rcv)
     if (rcv->ich >= 0 && rcv->ch[rcv->ich]->ch->state == STATE_SRCH) {
         return;
     }
-    // search next IDLE channel
     for (int i = 0; i < rcv->nch; i++) {
+        // search next IDLE channel
         rcv->ich = (rcv->ich + 1) % rcv->nch;
-        if (rcv->ch[rcv->ich]->ch->state != STATE_IDLE) continue;
-        rcv->ch[rcv->ich]->ch->state = STATE_SRCH;
-        break;
+        sdr_ch_t *ch = rcv->ch[rcv->ich]->ch;
+        if (ch->state != STATE_IDLE) continue;
+        
+        // re-acquisition, assisted-acquisition or short code cycle
+        if (re_acq(rcv, ch) || assist_acq(rcv, ch) || ch->T <= 5e-3) {
+        //if (re_acq(rcv, ch) || assist_acq(rcv, ch)) {
+            ch->state = STATE_SRCH;
+            break;
+        }
     }
 }
 
@@ -361,9 +402,9 @@ static void rcv_wait(rcv_t *rcv)
 }
 
 // execute receiver ------------------------------------------------------------
-static void rcv_exec(rcv_t *rcv, FILE *fp, double tint, int quiet)
+static void rcv_exec(rcv_t *rcv, FILE *fp, const double *tint)
 {
-    int ncol = 0;
+    int nrow = 0;
     
     // set all channels search for file input
     if (fp != stdin) {
@@ -371,7 +412,7 @@ static void rcv_exec(rcv_t *rcv, FILE *fp, double tint, int quiet)
             rcv->ch[i]->ch->state = STATE_SRCH;
         }
     }
-    if (!quiet) {
+    if (tint[0] > 0) {
         printf("%s", ESC_HCUR);
     }
     for (int64_t ix = 0; !intr ; ix++) {
@@ -385,8 +426,8 @@ static void rcv_exec(rcv_t *rcv, FILE *fp, double tint, int quiet)
         rcv_update_srch(rcv);
         
         // print receiver status
-        if (!quiet && ix % (int)(tint / T_CYC) == 0) {
-            ncol = rcv_print_stat(rcv, ncol);
+        if (tint[0] > 0.0 && ix % (int)(tint[0] / T_CYC) == 0) {
+            nrow = rcv_print_stat(rcv, nrow);
         }
         // suspend data reading for file input
         if (fp != stdin) rcv_wait(rcv);
@@ -394,8 +435,8 @@ static void rcv_exec(rcv_t *rcv, FILE *fp, double tint, int quiet)
     // stop receiver
     rcv_stop(rcv);
     
-    if (!quiet) {
-        rcv_print_stat(rcv, ncol);
+    if (tint[0] > 0.0) {
+        rcv_print_stat(rcv, nrow);
         printf("%s", ESC_VCUR);
     }
 }
@@ -406,7 +447,8 @@ static void rcv_exec(rcv_t *rcv, FILE *fp, double tint, int quiet)
 //
 //     pocket_trk [-sig sig -prn prn[,...] ...] [-r] [-toff toff] [-f freq]
 //         [-fi freq[,freq]] [-d freq[,freq]] [-IQ|-IQI|-IIQ] [-ti tint]
-//         [-log path] [-w file] [-q] [file]
+//         [-log path[,level]] [-nmea path[,tint]] [-rtcm path[,tint]] [-w file]
+//         [file]
 //
 //   Description
 //
@@ -452,23 +494,39 @@ static void rcv_exec(rcv_t *rcv, FILE *fp, double tint, int quiet)
 //         CH2, -IQI: CH1 only, -IIQ: CH2 only)
 //
 //     -ti tint
-//         Update interval of signal tracking status in s. [0.1]
+//         Update interval of the signal tracking status in s. If 0 specified,
+//         the signal tracking status suppressed. [0.1]
 //
-//     -log path
-//         A log stream path to write the signal tracking log. The log includes
+//     -log path[,level]
+//         A stream path to write the signal tracking log. The log includes
 //         decoded navigation data and code offset, including navigation data
-//         decoded. The stream path should be one of the followings.
+//         decoded. To specify the log level, add ",<level>" after the path.
+//         The default log level is 3.
+//         The stream path should be one of the followings.
 //
 //         (1) local file  file path without ':'. The file path can be contain
-//             time keywords (%Y, %m, %d, %h, %M) as same as RTKLIB stream.
+//             time keywords (%Y, %m, %d, %h, %M) as same as the RTKLIB stream.
 //         (2) TCP server  :port
 //         (3) TCP client  address:port
 //
+//     -nmea path[,tint]
+//         A stream path to write PVT solutions as NMEA GNRMC, GNGGA and GNGSV
+//         sentences. To specify the interval of the PVT solutions in seconds,
+//         add ",<tint>" after the path. The default interval is 1 sec. The
+//         stream path is as same as the -log option.
+//         
+//         To be implemented.
+//
+//     -rtcm path[,tint]
+//         A stream path to write raw observation and navigation data as RTCM3.3
+//         messages. To specify the interval of the raw observation data in
+//         seconds, add ",<tint>" after the path. The stream path is as same
+//         as the -log option.
+//
+//         To be implemented.
+//
 //     -w file
 //         Specify the FFTW wisdowm file. [../python/fftw_wisdom.txt]
-//
-//     -q
-//         Suppress showing the signal tracking status.
 //
 //     [file]
 //         A file path of the input digital IF data. The format should be a
@@ -481,12 +539,11 @@ static void rcv_exec(rcv_t *rcv, FILE *fp, double tint, int quiet)
 int main(int argc, char **argv)
 {
     FILE *fp = stdin;
-    int prns[SDR_MAX_NCH], nch = 0, fmt = 0, IQ[2] = {1, 1};
-    int log_lvl = 4, quiet = 0;
-    double fs = 12e6, fi[2] = {0}, toff = 0.0, tint = 0.1;
+    int prns[SDR_MAX_NCH], nch = 0, fmt = 0, IQ[2] = {1, 1}, log_lvl = 3;
+    double fs = 12e6, fi[2] = {0}, toff = 0.0, tint[3] = {0.1, 1.0, 1.0};
     double dop[2] = {0.0, MAX_DOP};
     char *sig = "L1CA", *sigs[SDR_MAX_NCH];
-    char *file = "", *log_file = "", *fftw_wisdom = FFTW_WISDOM;
+    char *file = "", paths[3][1024] = {{0}}, *fftw_wisdom = FFTW_WISDOM;
     
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-sig") && i + 1 < argc) {
@@ -528,16 +585,25 @@ int main(int argc, char **argv)
             IQ[1] = 1;
         }
         else if (!strcmp(argv[i], "-ti") && i + 1 < argc) {
-            tint = atof(argv[++i]);
+            tint[0] = atof(argv[++i]);
         }
         else if (!strcmp(argv[i], "-w") && i + 1 < argc) {
             fftw_wisdom = argv[++i];
         }
         else if (!strcmp(argv[i], "-log") && i + 1 < argc) {
-            log_file = argv[++i];
+            char *p = strrchr(argv[++i], ',');
+            if (p) sscanf(p, ",%d", &log_lvl);
+            strncpy(paths[0], argv[i], p ? MIN(p - argv[i], 1023) : 1023);
         }
-        else if (!strcmp(argv[i], "-q")) {
-            quiet = 1;
+        else if (!strcmp(argv[i], "-nmea") && i + 1 < argc) {
+            char *p = strrchr(argv[++i], ',');
+            if (p) sscanf(p, ",%lf", tint + 1);
+            strncpy(paths[1], argv[i], p ? MIN(p - argv[i], 1023) : 1023);
+        }
+        else if (!strcmp(argv[i], "-rtcm") && i + 1 < argc) {
+            char *p = strrchr(argv[++i], ',');
+            if (p) sscanf(p, ",%lf", tint + 2);
+            strncpy(paths[2], argv[i], p ? MIN(p - argv[i], 1023) : 1023);
         }
         else if (argv[i][0] == '-') {
             show_usage();
@@ -562,8 +628,8 @@ int main(int argc, char **argv)
     }
 #endif
     sdr_func_init(fftw_wisdom);
-    if (*log_file) {
-        sdr_log_open(log_file);
+    if (*paths[0]) {
+        sdr_log_open(paths[0]);
         sdr_log_level(log_lvl);
     }
     signal(SIGTERM, sig_func);
@@ -577,14 +643,14 @@ int main(int argc, char **argv)
     rcv_t *rcv = rcv_new(sigs, prns, nch, fs, fi, dop, fmt, IQ);
     
     // execute receiver
-    rcv_exec(rcv, fp, tint, quiet);
+    rcv_exec(rcv, fp, tint);
     
     // free receiver
     rcv_free(rcv);
     
     tt = sdr_get_tick() - tt;
     sdr_log(3, "$LOG,%.3f,%s,%d,END FILE=%s", tt * 1e-3, "", 0, file);
-    if (!quiet) {
+    if (tint[0] > 0.0) {
         printf("  TIME(s) = %.3f\n", tt * 1e-3);
     }
     sdr_log_close();

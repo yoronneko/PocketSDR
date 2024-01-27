@@ -23,10 +23,12 @@
 #  2022-01-06  1.0  new
 #  2023-01-07  1.1  support IRNV1_SF2 and IRNV1_SF3 in decode_LDPC()
 #  2023-01-09  1.2  support BCNV1_SF2, BCNV1_SF3, BCNV2, BCNV3 in decode_LDPC()
+#  2023-01-24  1.3  support NB-LDPC error correction
 #
 import os, platform
 from ctypes import *
 import numpy as np
+from sdr_nb_ldpc import *
 
 # load library of LDPC-codes ([1],[2]) -----------------------------------------
 env = platform.platform()
@@ -47,16 +49,13 @@ except:
     exit()
 
 # constants --------------------------------------------------------------------
+MAX_ITER = 250
 ERR_PROB = 1e-5
 RATIO = ((1.0 - ERR_PROB) / ERR_PROB, ERR_PROB / (1.0 - ERR_PROB))
 
 # LDPC H-matrix cache ----------------------------------------------------------
 H_CNV2_SF2  = None
 H_CNV2_SF3  = None
-H_BCNV1_SF2 = None
-H_BCNV1_SF3 = None
-H_BCNV2     = None
-H_BCNV3     = None
 H_IRNV1_SF2 = None
 H_IRNV1_SF3 = None
 
@@ -2202,35 +2201,19 @@ def decode_LDPC_CNV2_SF3(syms):
 
 # decode LDPC(200,100) of B-CNAV1 subframe 2 -----------------------------------
 def decode_LDPC_BCNV1_SF2(syms):
-    global H_BCNV1_SF2
-    if not H_BCNV1_SF2:
-        H_BCNV1_SF2 = gen_NB_LDPC_H(100, 200, H_BCNV1_SF2_idx, H_BCNV1_SF2_ele)
-    
-    return decode_NB_LDPC(H_BCNV1_SF2, 100, 200, syms ^ 1)
+    return decode_NB_LDPC(H_BCNV1_SF2_idx, H_BCNV1_SF2_ele, 100, 200, syms ^ 1)
 
 # decode LDPC(88,44) of B-CNAV1 subframe 3 -------------------------------------
 def decode_LDPC_BCNV1_SF3(syms):
-    global H_BCNV1_SF3
-    if not H_BCNV1_SF3:
-        H_BCNV1_SF3 = gen_NB_LDPC_H(44, 88, H_BCNV1_SF3_idx, H_BCNV1_SF3_ele)
-    
-    return decode_NB_LDPC(H_BCNV1_SF3, 44, 88, syms ^ 1)
+    return decode_NB_LDPC(H_BCNV1_SF3_idx, H_BCNV1_SF3_ele, 44, 88, syms ^ 1)
 
 # decode LDPC(96,48) of B-CNAV2 frame ------------------------------------------
 def decode_LDPC_BCNV2(syms):
-    global H_BCNV2
-    if not H_BCNV2:
-        H_BCNV2 = gen_NB_LDPC_H(48, 96, H_BCNV2_idx, H_BCNV2_ele)
-    
-    return decode_NB_LDPC(H_BCNV2, 48, 96, syms)
+    return decode_NB_LDPC(H_BCNV2_idx, H_BCNV2_ele, 48, 96, syms)
 
 # decode LDPC(162,81) of B-CNAV3 frame -----------------------------------------
 def decode_LDPC_BCNV3(syms):
-    global H_BCNV3
-    if not H_BCNV3:
-        H_BCNV3 = gen_NB_LDPC_H(81, 162, H_BCNV3_idx, H_BCNV3_ele)
-    
-    return decode_NB_LDPC(H_BCNV3, 81, 162, syms)
+    return decode_NB_LDPC(H_BCNV3_idx, H_BCNV3_ele, 81, 162, syms)
 
 # decode LDPC(1200,600) of NavIC L1-SPS subframe 2 -----------------------------
 def decode_LDPC_IRNV1_SF2(syms):
@@ -2280,44 +2263,30 @@ def free_LDPC_H(H):
 def decode_B_LDPC(H, m, n, syms):
     if len(syms) != n:
         print('decode_LDPC_H: size error (%d %d)' % (n, len(syms)))
-        return []
+        return [], -1
+    
     lratio = np.zeros(n, dtype='double')
     dblk   = np.zeros(n, dtype='int8')
     pchk   = np.zeros(n, dtype='int8')
     bitpr  = np.zeros(n, dtype='double')
-    
-    for i in range(n):
-        lratio[i] = RATIO[syms[i]]
-    
     p1 = lratio.ctypes.data_as(POINTER(c_double))
     p2 = dblk.ctypes.data_as(POINTER(c_int8))
     p3 = pchk.ctypes.data_as(POINTER(c_int8))
     p4 = bitpr.ctypes.data_as(POINTER(c_double))
     
+    for i in range(n):
+        lratio[i] = RATIO[syms[i]]
+    
+    # setup decoder
+    max_iter = c_int.in_dll(libldpc, "max_iter")
+    max_iter.value = MAX_ITER
+    libldpc.prprp_decode_setup()
+    
     # decode LDPC by probability propagation
-    iters = libldpc.prprp_decode(c_void_p(H), p1, p2, p3, p4)
+    niter = libldpc.prprp_decode(c_void_p(H), p1, p2, p3, p4)
+    valid = libldpc.check(c_void_p(H), p2, p3) == 0
+    libldpc.changed.restype = c_double
+    nerr = int(libldpc.changed(p1, p2, n))
     
-    #valid = libldpc.check(c_void_p(H), p2, p3) == 0
-    #chngd = libldpc.changed(p1, p2, n)
-    #print('decode_B_LDPC: iters=%d valid=%d chngd=%d' % (iters, valid, chngd))
-    
-    syms_c = dblk[:m] ^ 1
-    nerr = np.count_nonzero(syms_c ^ syms[:m])
-    #return syms_c, nerr
-    return syms_c ^ 1, nerr
+    return dblk[:m], nerr if valid else -1
 
-# generate NB-LDPC parity check matrix -----------------------------------------
-def gen_NB_LDPC_H(m, n, H_idx, H_ele):
-    H = np.zeros((m, n), dtype='uint8')
-    for i in range(m):
-        for j in range(4):
-            H[i][H_idx[i][j]] = H_ele[i][j]
-
-# decode NB-LDPC ---------------------------------------------------------------
-def decode_NB_LDPC(H, m, n, syms):
-    if len(syms) // 6 != n:
-        print('decode_NB_LDPC_H: size error (%d %d)' % (n, len(syms)))
-        return []
-    
-    # skip error correction (tentative)
-    return syms[:m*6], 0
