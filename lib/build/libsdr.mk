@@ -42,10 +42,10 @@ ifeq ($(shell uname -s),Darwin)
 		LDLIBS  += -L/usr/local/Cellar/libusb/1.0.26/lib
 	else ifeq ($(shell uname -m),arm64)
 		INSTALL = ../darwin_arm
-		INCLUDE += -I/opt/homebrew/Cellar/fftw/3.3.10_1/include
-		INCLUDE += -I/opt/homebrew/Cellar/libusb/1.0.26/include
-		LDLIBS  += -L/opt/homebrew/Cellar/fftw/3.3.10_1/lib
-		LDLIBS  += -L/opt/homebrew/Cellar/libusb/1.0.26/lib
+		INCLUDE += -I/opt/homebrew/include
+		INCLUDE += -I/opt/homebrew/include/libusb-1.0
+		LDLIBS  += -L/opt/homebrew/lib
+		LDLIBS  += -L/opt/homebrew/lib/libusb-1.0
 		OPTIONS =
 		# clear AVX2 definition
 		CFLAGS = -Ofast $(INCLUDE) $(OPTIONS) -Wall -fPIC -g

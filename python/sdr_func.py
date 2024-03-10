@@ -80,6 +80,25 @@ def read_data(file, fs, IQ, T, toff=0.0):
         return np.array(raw[0::2] - raw[1::2] * 1j, dtype='complex64')
 
 def read_data(file, fs, IQ, T, toff, sdrfmt):
+    ''' Read digitalized IF (inter-frequency) data from file.
+    Supported file format is signed byte (int8) for I-sampling (real-sampling)
+    or interleaved singned byte for IQ-sampling (complex-sampling).
+    args:
+        file     (I) Digitalized IF data file path
+        fs       (I) Sampling frequency (Hz)
+        IQ       (I) Sampling type (1: I-sampling, 2: IQ-sampling)
+        T        (I) Sample period (s)
+        toff=0.0 (I) Time offset from the beginning (s) (optional)
+        sdrfmt   (I) SDR data format (pocketsdr, sc16, sc16q11, sc8, s16, s8)
+            pocketsdr: Pocket SDR, 8 bit integer
+            sc16: signed complex value, 16 bit integer little-endian
+            sc16q11: signed complex value, 16 bit integer little-endian
+            sc8: signed complex value, 8 bit integer
+            s16: signed real value, 16 bit integer little-endian
+            s8: signed real value, 8 bit integer
+    returns:
+        data     Digitized IF data as complex64 ndarray (length == 0: read error)
+    '''
     if sdrfmt == 'pocketsdr':  # Pocket SDR, 8 bit integer
         # data type, data size, bit width, divisor of data value
         dt, div, bw = 'int8', 1, 1
