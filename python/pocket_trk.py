@@ -73,6 +73,18 @@ def read_data(fp, N, IQ, buff, ix):
     return True
 
 def read_data(fp, N, IQ, buff, ix, sdrfmt):
+    ''' Read IF data from file or stdin
+       Args: fp - file pointer, N - number of samples, IQ - 1: I, 2: IQ,
+             buff - buffer to store IF data, ix - buffer index, sdrfmt - SDR format
+             Returns: True: OK, False: EOF
+        sdrfmt: SDR data format
+            'pocketsdr': Pocket SDR, 8 bit integer
+            'sc16': signed complex value, 16 bit integer little-endian
+            'sc16q11': signed complex value, 16 bit integer little-endian
+            'sc8': signed complex value, 8 bit integer
+            's16': signed real value, 16 bit integer little-endian
+            's8': signed real value, 8 bit integer
+    '''
     if sdrfmt == 'pocketsdr':  # Pocket SDR, 8 bit integer
         # data type, divisor of data value, bit width
         dt, div, bw = 'int8', 1, 1
@@ -92,8 +104,9 @@ def read_data(fp, N, IQ, buff, ix, sdrfmt):
 # bladeRF sc16q11 format reverses the order of I and Q from sc16.
 # https://github.com/Nuand/bladeRF/blob/master/host/misc/matlab/load_sc16q11.m
     if fp == None:
-        fp = sys.stdin.buffer
-    raw = np.frombuffer(fp.read(N * IQ * bw), dtype=dt)
+        raw = np.frombuffer(sys.stdin.buffer.read(N * IQ * bw), dtype=dt)
+    else:
+        raw = np.frombuffer(fp.read(N * IQ * bw), dtype=dt)
 
     if len(raw) < N * IQ:
         return False
