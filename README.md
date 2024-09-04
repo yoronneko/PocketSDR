@@ -1,3 +1,9 @@
+# This project was archived
+
+This version of the original [Pocket SDR](https://github.com/tomojitakasu/PocketSDR/) is designed to run on macOS and supports a variety of SDR hardware. Since version 0.13, the original Pocket SDR has also included these capabilities. For more details, please visit the official Pocket SDR project at [GitHub](https://github.com/tomojitakasu/PocketSDR/).
+
+The C-based applications support multiple SDR formats using the `-fmt` option and are compatible with macOS.
+
 # Modifications from the original by yoronneko
 
 1. .gitignore added.
